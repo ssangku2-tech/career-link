@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>경력잇기</title>
+<meta name="description" content="조건에 맞는 채용공고를 매일 아침 골라 알려주는 개인용 앱">
+<meta name="theme-color" content="#1F3A68">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg: #F5F4F0;
+    --card: #FFFFFF;
+    --navy: #1F3A68;
+    --amber: #A04A05;
+    --amber-bg: #FBF1E7;
+    --ink: #1E2430;
+    --muted: #5C6370;
+    --line: #E3E1DA;
+    --chip: #EEF1F6;
+    --track: #E6E8EC;
+    --tab-h: 60px;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.55 "Noto Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  h1, h2, h3, p, dl, dd, ul { margin: 0; padding: 0; }
+  ul { list-style: none; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  svg.i.s { width: 15px; height: 15px; }
+  :focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  [tabindex="-1"]:focus { outline: none; }
+
+  #app { max-width: 480px; margin: 0 auto; padding: 20px 16px calc(var(--tab-h) + var(--safe-b) + 24px); }
+  #app.detail { padding-bottom: calc(76px + var(--safe-b) + 16px); }
+
+  .date { font-size: 13px; color: var(--muted); }
+  .page-title { font-size: 22px; font-weight: 700; line-height: 1.35; margin-top: 2px; }
+  .notice { margin-top: 12px; padding: 9px 12px; border-radius: 8px; background: var(--chip); color: var(--navy); font-size: 13px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-top: 16px; border-radius: 12px; overflow: hidden; background: var(--line); }
+  .tile { background: var(--card); padding: 12px 4px; text-align: center; }
+  .tile b { display: block; font-size: 20px; font-weight: 700; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .tile span { display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .tile span.warn { color: var(--amber); }
+
+  .section-title { font-size: 16px; font-weight: 700; margin: 24px 0 2px; }
+  .section-note { font-size: 13px; color: var(--muted); }
+  .cards { display: grid; gap: 10px; margin-top: 12px; }
+
+  .card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  a.card:active { background: #FAFAF8; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .org { font-size: 13px; color: var(--muted); }
+  .card-title { font-size: 16px; font-weight: 700; line-height: 1.4; margin-top: 2px; }
+  .score { flex: none; min-width: 48px; padding: 4px 8px; border-radius: 8px; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .score.ref { background: var(--card); color: var(--navy); box-shadow: inset 0 0 0 1px var(--navy); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: #33415A; font-size: 13px; }
+  .chip.urgent { background: var(--amber-bg); color: var(--amber); font-weight: 500; }
+  .chip.line { background: var(--card); box-shadow: inset 0 0 0 1px var(--line); }
+
+  .pay { margin-top: 12px; font-size: 15px; font-weight: 700; }
+  .cond { font-size: 13px; color: var(--muted); }
+  .reason { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .commute { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  .topbar { display: flex; align-items: center; margin: -8px 0 8px -10px; }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--navy); }
+  .detail-title { font-size: 20px; font-weight: 700; line-height: 1.4; margin-top: 2px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 12px; }
+  .panel h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .meter-head b { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meter { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; margin-top: 6px; }
+  .meter i { display: block; height: 100%; border-radius: 4px; background: var(--navy); }
+  .meter-reason { margin-top: 10px; }
+
+  .level { font-weight: 500; }
+  .trans li { padding: 10px 0; border-top: 1px solid var(--line); }
+  .trans li:first-child { padding-top: 0; border-top: 0; }
+  .trans li:last-child { padding-bottom: 0; }
+  .trans .from { font-size: 13px; color: var(--muted); }
+  .trans .to { display: flex; align-items: flex-start; gap: 5px; font-weight: 500; color: var(--navy); margin-top: 2px; }
+  .trans .to svg { margin-top: 3px; }
+
+  .table { display: grid; grid-template-columns: 78px 1fr; }
+  .table dt, .table dd { padding: 9px 0; border-top: 1px solid var(--line); }
+  .table dt:first-of-type, .table dt:first-of-type + dd { border-top: 0; padding-top: 0; }
+  .table dt { color: var(--muted); font-size: 13px; padding-top: 10px; }
+  .table dd.warn { display: flex; align-items: flex-start; gap: 4px; color: var(--amber); font-weight: 500; }
+  .table dd.warn svg { margin-top: 3px; }
+  .table dt.warn-note { display: none; }
+
+  .actions { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px calc(10px + var(--safe-b)); z-index: 10; }
+  .actions div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 448px; margin: 0 auto; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 48px; border-radius: 10px; font-size: 14px; font-weight: 700; text-align: center; }
+  .btn.primary { background: var(--navy); color: #fff; }
+  .btn.secondary { box-shadow: inset 0 0 0 1px var(--navy); color: var(--navy); background: var(--card); }
+
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding-bottom: var(--safe-b); z-index: 10; }
+  .tabs ul { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 480px; margin: 0 auto; }
+  .tabs a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: var(--tab-h); font-size: 13px; color: var(--muted); }
+  .tabs a[aria-current="page"] { color: var(--navy); font-weight: 700; }
+
+  .chip-group + .chip-group { margin-top: 14px; }
+  .chip-group h3 { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .chip-group .chips { margin-top: 6px; }
+  .profile-lead { font-size: 15px; font-weight: 500; margin-top: 4px; }
+
+  .empty { text-align: center; padding: 56px 16px; color: var(--muted); }
+  .empty svg { width: 32px; height: 32px; color: var(--navy); margin-bottom: 10px; }
+  .empty strong { display: block; font-size: 16px; color: var(--ink); margin-bottom: 4px; }
+  .empty .btn { margin: 16px auto 0; padding: 0 24px; display: inline-flex; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(92px + var(--safe-b)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 13px; z-index: 20; }
+  .toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<nav class="tabs" id="tabs" aria-label="주요 메뉴"></nav>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+
+const ICONS = {
+  today: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/>',
+  saved: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1Z"/>',
+  support: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/>',
+  back: '<path d="m15 5-7 7 7 7"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  external: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17l-1 3Z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  warn: '<path d="M12 4 2.8 20h18.4L12 4Z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+  transit: '<rect x="5" y="3.5" width="14" height="14" rx="3"/><path d="M5 11h14M8.5 17.5 7 20.5M15.5 17.5l1.5 3M8.5 14.5v.01M15.5 14.5v.01"/>',
+  car: '<path d="M4 16v-3.5L6 7a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 7l2 5.5V16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M4.5 12h15M7 17v2M17 17v2"/>',
+  home: '<path d="m4 11 8-7 8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  retry: '<path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/>',
+};
+const icon = (name, small) => `<svg class="i${small ? ' s' : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+
+const TABS = [
+  { id: 'today', label: '오늘 추천' },
+  { id: 'saved', label: '저장·지원' },
+  { id: 'support', label: '지원사업' },
+  { id: 'profile', label: '내 경력' },
+];
+const LEVELS = { high: '일치', mid: '일부 일치', low: '부족' };
+const REMOTE = { none: '없음', partial: '일부 재택 가능', full: '전면 재택' };
+const URGENT_DAYS = 5;
+
+const app = document.getElementById('app');
+const tabsEl = document.getElementById('tabs');
+const toastEl = document.getElementById('toast');
+const state = { data: null, config: null, error: false, todayScroll: 0, currentTab: null };
+
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => { try { return ['http:', 'https:'].includes(new URL(u).protocol) ? u : null; } catch { return null; } };
+const seoulDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+function daysLeft(deadline) {
+  if (!deadline) return null;
+  const toUtc = (s) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((toUtc(deadline) - toUtc(seoulDate())) / 86400000);
+}
+const isUrgent = (job) => { const d = daysLeft(job.deadline); return d !== null && d >= 0 && d <= URGENT_DAYS; };
+function dayLabel(job) {
+  const d = daysLeft(job.deadline);
+  if (d === null) return '상시';
+  if (d < 0) return '마감';
+  return d === 0 ? 'D-day' : `D-${d}`;
+}
+
+function headerDate(iso) {
+  const d = new Date(iso);
+  const date = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' }).format(d);
+  const time = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+  return `${date} · ${time} 업데이트`;
+}
+
+function commuteHtml(job) {
+  if (job.commuteMin == null) {
+    return job.remote === 'full'
+      ? `${icon('home', true)}<span>전면 재택 · 출퇴근 없음</span>`
+      : `${icon('clock', true)}<span>출퇴근 시간 확인 중</span>`;
+  }
+  const mode = job.commuteMode === 'car' ? '자차' : '대중교통';
+  const origin = esc(state.config.origin.name);
+  return `${icon(job.commuteMode === 'car' ? 'car' : 'transit', true)}<span>${origin} → ${mode} 약 ${esc(job.commuteMin)}분</span>`;
+}
+function commuteText(job) {
+  if (job.commuteMin == null) return job.remote === 'full' ? '없음 (전면 재택)' : '확인 중';
+  return `${state.config.origin.name} → ${job.commuteMode === 'car' ? '자차' : '대중교통'} 약 ${job.commuteMin}분`;
+}
+
+function jobCard(job) {
+  const urgent = isUrgent(job);
+  const cond = [job.workDays, job.workHours, job.remote !== 'none' ? REMOTE[job.remote] : ''].filter(Boolean).join(' · ');
+  return `
+    <a class="card" href="#/job/${encodeURIComponent(job.id)}">
+      <div class="card-top">
+        <div>
+          <div class="org">${esc(job.org)} · ${esc(job.orgType)}</div>
+          <h3 class="card-title">${esc(job.title)}</h3>
+        </div>
+        <div class="score${job.isReference ? ' ref' : ''}" aria-label="적합도 ${esc(job.score)}점">${esc(job.score)}점</div>
+      </div>
+      <div class="chips">
+        <span class="chip">${esc(job.employType)}</span>
+        <span class="chip">${esc(job.contractTerm)}</span>
+        <span class="chip">${esc(job.region)}</span>
+        <span class="chip${urgent ? ' urgent' : ''}">${urgent ? icon('clock', true) : ''}${esc(dayLabel(job))}</span>
+      </div>
+      <p class="pay">${esc(job.salaryText || '협의')}</p>
+      <p class="cond">${esc(cond)}</p>
+      <p class="reason">${esc(job.reason)}</p>
+      <div class="commute">${commuteHtml(job)}</div>
+    </a>`;
+}
+
+function viewToday() {
+  const { data } = state;
+  const main = data.jobs.filter((j) => !j.isReference);
+  const refs = data.jobs.filter((j) => j.isReference);
+  const urgentCount = data.jobs.filter(isUrgent).length;
+  const tiles = [
+    ['신규 수집', data.summary.collected, false],
+    ['조건 일치', data.summary.matched, false],
+    ['추천', data.jobs.length, false],
+    ['마감 임박', urgentCount, true],
+  ];
+  return `
+    <header>
+      <p class="date">${esc(headerDate(data.generatedAt))}</p>
+      <h1 class="page-title" tabindex="-1">오늘의 추천 ${data.jobs.length}건</h1>
+      ${data.isSample ? '<p class="notice">지금은 화면 확인용 샘플입니다. 기관과 공고는 모두 가상입니다.</p>' : ''}
+    </header>
+    <section class="tiles" aria-label="오늘 요약">
+      ${tiles.map(([label, value, warn]) => `
+        <div class="tile"><b>${esc(value)}</b><span class="${warn && value > 0 ? 'warn' : ''}">${warn && value > 0 ? icon('clock', true) : ''}${esc(label)}</span></div>`).join('')}
+    </section>
+    ${data.jobs.length === 0 ? `<div class="empty">${icon('today')}<strong>오늘은 조건에 맞는 공고가 없습니다</strong>내일 아침에 다시 골라 드릴게요.</div>` : ''}
+    ${main.length ? `<div class="cards">${main.map(jobCard).join('')}</div>` : ''}
+    ${refs.length ? `
+      <h2 class="section-title">참고 공고</h2>
+      <p class="section-note">추천 기준(70점)에는 못 미치지만 살펴볼 만한 공고입니다.</p>
+      <div class="cards">${refs.map(jobCard).join('')}</div>` : ''}`;
+}
+
+function insuranceRow(job) {
+  if (job.insurance === '위촉') {
+    return `<dd class="warn">${icon('warn', true)}<span>미적용 (위촉 계약)</span></dd>`;
+  }
+  return `<dd>${job.insurance === '4대보험' ? '적용' : '기타 (공고 확인 필요)'}</dd>`;
+}
+
+function viewJob(id) {
+  const job = state.data.jobs.find((j) => j.id === id);
+  if (!job) {
+    return `${backBar()}<div class="empty">${icon('warn')}<strong>공고를 찾을 수 없습니다</strong>오늘 목록에서 빠진 공고일 수 있습니다.</div>`;
+  }
+  const urgent = isUrgent(job);
+  const rows = [
+    ['급여', esc(job.salaryText || '협의')],
+    ['시간', esc([job.workDays, job.workHours].filter(Boolean).join(' · '))],
+    ['재택', esc(REMOTE[job.remote] || '확인 필요')],
+    ['계약', esc([job.employType, job.contractTerm].filter(Boolean).join(' · '))],
+  ];
+  const after = [
+    ['연령', esc(job.ageCondition)],
+    ['서류', esc(job.documents)],
+    ['출퇴근', esc(commuteText(job))],
+  ];
+  const dl = (list) => list.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const url = safeUrl(job.url);
+  return `
+    ${backBar()}
+    <header>
+      <p class="org">${esc(job.org)} · ${esc(job.orgType)}</p>
+      <h1 class="detail-title" tabindex="-1">${esc(job.title)}</h1>
+      <div class="chips">
+        <span class="chip">${esc(job.region)}</span>
+        <span class="chip${urgent ? ' urgent' : ''}">${urgent ? icon('clock', true) : ''}${esc(dayLabel(job))}${job.deadline ? ` · ${esc(job.deadline.slice(5).replace('-', '/'))} 마감` : ''}</span>
+        ${job.isReference ? '<span class="chip line">참고 공고</span>' : ''}
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="meter-head"><h2 style="margin:0">적합도</h2><b>${esc(job.score)}점</b></div>
+      <div class="meter" role="meter" aria-label="적합도" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${esc(job.score)}"><i style="width:${Math.max(0, Math.min(100, Number(job.score) || 0))}%"></i></div>
+      <p class="meter-reason">${esc(job.reason)}</p>
+      <div class="chips">
+        ${job.matchItems.map((m) => `<span class="chip${m.level === 'low' ? ' line' : ''}">${esc(m.name)} <span class="level">${esc(LEVELS[m.level] || '')}</span></span>`).join('')}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>경력 번역</h2>
+      <ul class="trans">
+        ${job.careerTranslation.map((t) => `<li><div class="from">${esc(t.from)}</div><div class="to">${icon('arrow', true)}<span>${esc(t.to)}</span></div></li>`).join('')}
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>근무 조건</h2>
+      <dl class="table">${dl(rows)}<dt>4대보험</dt>${insuranceRow(job)}${dl(after)}</dl>
+    </section>
+
+    <div class="actions"><div>
+      ${url ? `<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${icon('external', true)}공고 원문 보기</a>` : '<button class="btn primary" data-toast="원문 링크가 없는 공고입니다">공고 원문 보기</button>'}
+      <button class="btn secondary" data-toast="자기소개서 초안 기능은 준비 중입니다">${icon('edit', true)}자기소개서 초안</button>
+    </div></div>`;
+}
+
+function backBar() {
+  return `<div class="topbar"><a class="icon-btn" href="#/today" aria-label="오늘 추천으로 돌아가기">${icon('back')}</a></div>`;
+}
+
+function viewProfile() {
+  const c = state.config;
+  const p = c.profile;
+  const group = (title, items) => `<div class="chip-group"><h3>${esc(title)}</h3><div class="chips">${items.map((x) => `<span class="chip">${esc(x)}</span>`).join('')}</div></div>`;
+  const salary = c.desiredSalaryMonthly == null ? '없음 (필터 미적용)' : `월 ${Math.round(c.desiredSalaryMonthly / 10000)}만원 이상`;
+  const rows = [
+    ['희망 급여', salary],
+    ['4대보험', c.insurance],
+    ['재택', c.remote],
+    ['출발 기준', `${c.origin.area} ${c.origin.name}`],
+    ['이동 수단', '서울 대중교통 · 경기 자차'],
+    ['출퇴근 한도', `편도 ${c.commute.maxMinutes}분 이내`],
+    ['근무 지역', c.regions.join(', ')],
+    ['알림', c.notification],
+  ];
+  return `
+    <header>
+      <h1 class="page-title" tabindex="-1">내 경력</h1>
+      <p class="profile-lead">${esc(p.summary)}</p>
+    </header>
+    <section class="panel">
+      <h2>경력 프로필</h2>
+      ${group('주요 경력', p.careers)}
+      ${group('직무 키워드', p.keywords)}
+      ${group('관심 산업', p.industries)}
+      ${group('기관 유형', p.orgTypes)}
+      ${group('희망 근무 형태', p.workStyles)}
+    </section>
+    <section class="panel">
+      <h2>조건</h2>
+      <dl class="table">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    </section>`;
+}
+
+function viewPlaceholder(tab) {
+  const copy = {
+    saved: ['저장·지원', '공고를 저장하고 지원 현황을 관리하는 기능을 준비하고 있습니다.', 'saved'],
+    support: ['지원사업', '중장년 지원사업 일정을 모아 보여 드리는 기능을 준비하고 있습니다.', 'support'],
+  }[tab];
+  return `
+    <h1 class="page-title" tabindex="-1">${copy[0]}</h1>
+    <div class="empty">${icon(copy[2])}<strong>준비 중입니다</strong>${copy[1]}</div>`;
+}
+
+function viewError() {
+  return `<div class="empty">${icon('warn')}<strong>공고를 불러오지 못했습니다</strong>인터넷 연결을 확인한 뒤 다시 시도해 주세요.<br><button class="btn primary" id="retry">${icon('retry', true)}다시 시도</button></div>`;
+}
+
+function renderTabs(active, hidden) {
+  tabsEl.hidden = hidden;
+  tabsEl.style.display = hidden ? 'none' : '';
+  tabsEl.innerHTML = `<ul>${TABS.map((t) => `<li><a href="#/${t.id}"${t.id === active ? ' aria-current="page"' : ''}>${icon(t.id)}<span>${t.label}</span></a></li>`).join('')}</ul>`;
+}
+
+function route() {
+  const [, tab = 'today', id] = location.hash.split('/');
+  const isDetail = tab === 'job';
+  if (state.currentTab === 'today' && isDetail) state.todayScroll = window.scrollY;
+  const prev = state.currentTab;
+  state.currentTab = tab;
+
+  renderTabs(isDetail ? null : tab, isDetail);
+  app.classList.toggle('detail', isDetail);
+
+  if (state.error) { app.innerHTML = viewError(); return; }
+  if (!state.data) return;
+
+  if (isDetail) app.innerHTML = viewJob(decodeURIComponent(id || ''));
+  else if (tab === 'profile') app.innerHTML = viewProfile();
+  else if (tab === 'saved' || tab === 'support') app.innerHTML = viewPlaceholder(tab);
+  else app.innerHTML = viewToday();
+
+  window.scrollTo(0, tab === 'today' && prev === 'job' ? state.todayScroll : 0);
+  if (prev !== null) app.querySelector('h1')?.focus({ preventScroll: true });
+}
+
+async function load() {
+  state.error = false;
+  try {
+    const getJson = async (path) => {
+      const res = await fetch(path, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`${path}: ${res.status}`);
+      return res.json();
+    };
+    [state.data, state.config] = await Promise.all([getJson('data/latest.json'), getJson('config.json')]);
+  } catch (err) {
+    console.error(err);
+    state.error = true;
+  }
+  route();
+}
+
+let toastTimer;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, 2200);
+}
+
+document.addEventListener('click', (e) => {
+  const toastBtn = e.target.closest('[data-toast]');
+  if (toastBtn) showToast(toastBtn.dataset.toast);
+  if (e.target.closest('#retry')) load();
+});
+window.addEventListener('hashchange', route);
+
+renderTabs('today', false);
+load();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((err) => console.warn('서비스 워커 등록 실패', err));
+  });
+}
+</script>
+</body>
+</html>
