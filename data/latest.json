@@ -1,11 +1,12 @@
 {
   "isSample": false,
-  "isScored": false,
-  "generatedAt": "2026-11-10T02:23:38.368Z",
+  "isScored": true,
+  "generatedAt": "2026-11-10T03:12:46.531Z",
   "summary": {
     "collected": 521,
     "filtered": 1724,
-    "matched": 4
+    "matched": 4,
+    "scored": 4
   },
   "jobs": [
     {
@@ -28,66 +29,36 @@
       "documents": "이력서,자기소개서,졸업증명서,경력증명서",
       "deadline": "2026-12-12",
       "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=B2B%EC%98%81%EC%97%85%EC%A0%84%EB%AC%B8%EA%B0%80%20%EB%AA%A8%EC%A7%91%ED%95%A9%EB%8B%88%EB%8B%A4&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": null,
-      "reason": "제목·직종 일치: 영업, B2B · 가점: 중장년 우대",
-      "matchItems": [],
-      "careerTranslation": [],
-      "commuteMin": null,
-      "commuteMode": null,
-      "isReference": false
-    },
-    {
-      "id": "seoul-58c02bbf0098",
-      "source": "seoul",
-      "org": "(주)네이처푸드컴퍼니",
-      "orgType": "기업",
-      "title": "[채용대행]이동급식 배송및 세척원 모집",
-      "region": "경기 고양시 덕양구",
-      "address": "경기도 고양시 덕양구 중앙로 450, 602호 (행신동, 명성프라자)",
-      "employType": "시간제",
-      "workDays": "주 5일",
-      "workHours": "공고 확인",
-      "remote": "none",
-      "salaryText": "시급 11,000원 이상",
-      "salaryMonthly": null,
-      "insurance": "4대보험",
-      "contractTerm": "기간제 (공고 확인)",
-      "ageCondition": "(준)고령자(50세이상)",
-      "documents": "이력서",
-      "deadline": "2026-11-27",
-      "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=%5B%EC%B1%84%EC%9A%A9%EB%8C%80%ED%96%89%5D%EC%9D%B4%EB%8F%99%EA%B8%89%EC%8B%9D%20%EB%B0%B0%EC%86%A1%EB%B0%8F%20%EC%84%B8%EC%B2%99%EC%9B%90%20%EB%AA%A8%EC%A7%91&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": null,
-      "reason": "제목·직종 일치: 영업 · 가점: 중장년 우대, 고령자 우대",
-      "matchItems": [],
-      "careerTranslation": [],
-      "commuteMin": null,
-      "commuteMode": null,
-      "isReference": false
-    },
-    {
-      "id": "seoul-313e3217a600",
-      "source": "seoul",
-      "org": "송포농업협동조합",
-      "orgType": "협회",
-      "title": "송포농협 기간제근로자(영업지원직(경제)) 채용 공...",
-      "region": "경기 고양시 일산서구",
-      "address": "경기도 고양시 일산서구 일산로 640, 송포농협 로컬푸드 (대화동)",
-      "employType": "계약직",
-      "workDays": "주 5일",
-      "workHours": "09:00~18:00",
-      "remote": "none",
-      "salaryText": "월급 216만원 이상",
-      "salaryMonthly": 2160000,
-      "insurance": "4대보험",
-      "contractTerm": "기간제 (공고 확인)",
-      "ageCondition": "공고 확인",
-      "documents": "이력서",
-      "deadline": "2026-11-13",
-      "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=%EC%86%A1%ED%8F%AC%EB%86%8D%ED%98%91%20%EA%B8%B0%EA%B0%84%EC%A0%9C%EA%B7%BC%EB%A1%9C%EC%9E%90(%EC%98%81%EC%97%85%EC%A7%80%EC%9B%90%EC%A7%81(%EA%B2%BD%EC%A0%9C))%20%EC%B1%84%EC%9A%A9%20%EA%B3%B5&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": null,
-      "reason": "제목·직종 일치: 영업 · 가점: 고령자 우대",
-      "matchItems": [],
-      "careerTranslation": [],
+      "score": 78,
+      "reason": "B2B 영업과 신규 거래처 개척 경력이 직접 맞고 주 3일 근무와 중장년 환영 조건도 적합합니다. 다만 식품 업종 경험은 없습니다.",
+      "matchItems": [
+        {
+          "name": "B2B 영업",
+          "level": "high"
+        },
+        {
+          "name": "통신 산업",
+          "level": "low"
+        },
+        {
+          "name": "근무 형태",
+          "level": "high"
+        },
+        {
+          "name": "경력 수준",
+          "level": "mid"
+        }
+      ],
+      "careerTranslation": [
+        {
+          "from": "B2B 영업, 대리점(채널) 관리",
+          "to": "B2B 영업, 채널영업, 신규 거래처 발굴"
+        },
+        {
+          "from": "사업기획, 기업 고객 제안·계약",
+          "to": "영업구조 제안, 납품조건·거래조건 설계"
+        }
+      ],
       "commuteMin": null,
       "commuteMode": null,
       "isReference": false
@@ -112,13 +83,39 @@
       "documents": "이력서,자기소개서,졸업증명서",
       "deadline": "2026-12-15",
       "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=%E3%80%90%20%EA%B0%95%EB%82%A8%EA%B5%AC%EC%B2%AD%20%EA%B5%AC%EC%9D%B8%EA%B8%B0%EC%97%85%20%EC%B4%88%EB%8C%80%EC%9D%98%20%EB%82%A0%20%26%20%EA%B0%95%EB%82%A8%EA%B3%A0&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": null,
-      "reason": "제목·직종 일치: 영업 · 가점: 고령자 우대",
-      "matchItems": [],
-      "careerTranslation": [],
+      "score": 66,
+      "reason": "통신·ICT 기술영업 경력을 살릴 수 있으나 주 5일 풀타임과 기술지원 업무 비중이 부담입니다.",
+      "matchItems": [
+        {
+          "name": "통신 산업",
+          "level": "high"
+        },
+        {
+          "name": "B2B 영업",
+          "level": "mid"
+        },
+        {
+          "name": "근무 형태",
+          "level": "low"
+        },
+        {
+          "name": "중장년 친화",
+          "level": "high"
+        }
+      ],
+      "careerTranslation": [
+        {
+          "from": "B2B 영업, 기업 고객 제안·계약",
+          "to": "기술영업, 법인 고객 솔루션 제안"
+        },
+        {
+          "from": "통신 대기업 서비스 기획",
+          "to": "네트워크·CCTV 등 ICT 서비스 운영 이해"
+        }
+      ],
       "commuteMin": null,
       "commuteMode": null,
-      "isReference": false
+      "isReference": true
     }
   ]
 }
