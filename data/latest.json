@@ -1,10 +1,10 @@
 {
   "isSample": false,
   "isScored": false,
-  "generatedAt": "2026-11-10T01:47:16.624Z",
+  "generatedAt": "2026-11-10T02:23:38.368Z",
   "summary": {
-    "collected": 513,
-    "filtered": 1674,
+    "collected": 521,
+    "filtered": 1724,
     "matched": 4
   },
   "jobs": [
