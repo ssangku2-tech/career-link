@@ -105,7 +105,7 @@ function writeOutput(output) {
 
 async function main() {
   try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* 배포 환경에는 .env가 없다 */ }
-  const key = process.env.SEOUL_API_KEY;
+  const key = process.env.SEOUL_API_KEY?.trim();
   if (!key) throw new Error('SEOUL_API_KEY가 없습니다');
 
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));

@@ -17,7 +17,15 @@ async function fetchPage(key, start, end) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json();
+      const text = await res.text();
+      // 인증키 오류 같은 일부 응답은 json을 요청해도 XML로 온다
+      if (text.trimStart().startsWith('<')) {
+        const tag = (name) => text.match(new RegExp(`<${name}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${name}>`))?.[1]?.trim() ?? '';
+        const error = new Error(`${tag('CODE') || '알 수 없는 응답'}: ${tag('MESSAGE').split('\n')[0]}`);
+        error.fatal = /^INFO-100|^ERROR-3/.test(tag('CODE'));
+        throw error;
+      }
+      const body = JSON.parse(text);
       const data = body[SERVICE] || body;
       const code = data.RESULT?.CODE;
       if (code === 'INFO-200') return { total: 0, rows: [] };
@@ -26,6 +34,7 @@ async function fetchPage(key, start, end) {
     } catch (err) {
       // 인증키가 URL에 들어가므로 오류 메시지에서 가린다
       lastError = new Error(String(err.message).split(key).join('***'));
+      if (err.fatal) break; // 키·요청 오류는 다시 시도해도 같다
       if (attempt < RETRIES) await new Promise((r) => setTimeout(r, attempt * 2000));
     }
   }
