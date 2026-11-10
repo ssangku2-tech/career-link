@@ -6,6 +6,14 @@
   "insurance": "무관 (위촉은 강조 표시)",
   "remote": "가점",
   "notification": "매일 아침 앱 갱신 · 텔레그램 알림은 준비 중",
+  "supportLinks": [
+    { "name": "서울시50플러스 일자리몽땅", "desc": "중장년 취업상담, 취업훈련, 경력인재 지원 공고", "url": "https://www.50plus.or.kr/" },
+    { "name": "중장년내일센터", "desc": "40세 이상 생애경력설계, 전직·재취업 지원 (고용24 안내)", "url": "https://www.work24.go.kr/wk/u/a/1000/seniorCenterSvcInfo.do" },
+    { "name": "서울시 일자리포털", "desc": "이 앱이 매일 공고를 가져오는 곳", "url": "https://job.seoul.go.kr/" },
+    { "name": "경기 잡아바", "desc": "경기도일자리재단, 고양 등 경기 일자리", "url": "https://job.gg.go.kr/main/main.do" },
+    { "name": "알리오 공공기관 채용", "desc": "공공기관 전문위원·계약직 채용 공고", "url": "https://job.alio.go.kr/recruit.do" },
+    { "name": "고용24", "desc": "구직 신청, 직업훈련(국민내일배움카드), 실업급여", "url": "https://www.work24.go.kr/" }
+  ],
   "matching": {
     "coreKeywords": ["사업기획", "사업개발", "사업관리", "서비스기획", "서비스 기획", "영업", "통신", "네트워크", "제휴", "채널", "대리점", "B2B", "판로", "컨설턴트", "컨설팅", "자문", "고문", "전문위원"],
     "broadKeywords": ["기획", "마케팅", "홍보"],

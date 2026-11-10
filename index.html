@@ -146,6 +146,30 @@
   .memo { display: block; width: 100%; margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: var(--ink); background: var(--card); resize: vertical; min-height: 72px; }
   .memo:focus { outline: 2px solid var(--navy); outline-offset: 1px; }
 
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin: -6px -6px 6px; }
+  .cal-head h2 { margin: 0; font-size: 16px; }
+  .icon-btn.flip svg { transform: scaleX(-1); }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .cal-week { font-size: 13px; color: var(--muted); padding: 4px 0; }
+  .cal-week:first-child { color: var(--amber); }
+  .cal-cell { position: relative; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .cal-cell.past { color: #9AA0A9; }
+  .cal-cell.today span { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; }
+  .cal-dot { width: 7px; height: 7px; margin-top: 2px; border-radius: 50%; background: var(--navy); }
+  .cal-dot.urgent { background: var(--amber); }
+  .cal-dot.done { background: #B9BEC6; }
+  .link-btn { display: block; margin: 8px auto 0; min-height: 44px; padding: 0 16px; color: var(--navy); font-size: 14px; font-weight: 500; text-decoration: underline; }
+  .agenda li + li, .link-list li + li { border-top: 1px solid var(--line); }
+  .agenda a { display: flex; gap: 12px; align-items: center; min-height: 56px; padding: 10px 0; }
+  .agenda a.done { opacity: 0.6; }
+  .agenda-date { flex: none; width: 64px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .agenda-date.urgent { color: var(--amber); font-weight: 500; }
+  .agenda-body, .link-list a > span { display: flex; flex-direction: column; min-width: 0; }
+  .agenda-body b, .link-list b { font-size: 14px; font-weight: 700; }
+  .agenda-body span, .link-list a > span > span { font-size: 13px; color: var(--muted); }
+  .link-list a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 10px 0; color: var(--ink); }
+  .link-list a svg { color: var(--navy); }
+
   .toast { position: fixed; left: 50%; bottom: calc(92px + var(--safe-b)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 13px; z-index: 20; }
   .toast[hidden] { display: none; }
 </style>
@@ -511,13 +535,78 @@ function viewProfile() {
     </section>`;
 }
 
-function viewPlaceholder(tab) {
-  const copy = {
-    support:['지원사업', '중장년 지원사업 일정을 모아 보여 드리는 기능을 준비하고 있습니다.', 'support'],
-  }[tab];
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// 저장한 공고의 마감일을 달력과 목록으로 보여 준다
+function viewSupport() {
+  const today = seoulDate();
+  const month = state.calMonth || today.slice(0, 7);
+  const [y, m] = month.split('-').map(Number);
+  const events = store.all()
+    .filter((e) => e.job.deadline && e.job.deadline.startsWith(month))
+    .sort((a, b) => a.job.deadline.localeCompare(b.job.deadline));
+  const byDay = {};
+  for (const e of events) (byDay[e.job.deadline] ||= []).push(e);
+
+  const firstWeekday = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push('<div class="cal-cell" aria-hidden="true"></div>');
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = `${month}-${String(d).padStart(2, '0')}`;
+    const list = byDay[date] || [];
+    const active = list.filter((e) => !DONE_STATUSES.includes(e.status));
+    const urgent = active.some((e) => isUrgent(e.job));
+    const label = `${m}월 ${d}일${date === today ? ', 오늘' : ''}${list.length ? `, 마감 ${list.length}건` : ''}`;
+    cells.push(`<div class="cal-cell${date === today ? ' today' : ''}${date < today ? ' past' : ''}" aria-label="${label}">
+      <span>${d}</span>${list.length ? `<i class="cal-dot${urgent ? ' urgent' : ''}${active.length ? '' : ' done'}" aria-hidden="true"></i>` : ''}
+    </div>`);
+  }
+
+  const dayName = (date) => WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+  const links = state.config.supportLinks || [];
   return `
-    <h1 class="page-title" tabindex="-1">${copy[0]}</h1>
-    <div class="empty">${icon(copy[2])}<strong>준비 중입니다</strong>${copy[1]}</div>`;
+    <header>
+      <h1 class="page-title" tabindex="-1">지원사업</h1>
+      <p class="section-note">저장한 공고의 마감일과 중장년 지원기관을 모았습니다.</p>
+    </header>
+
+    <section class="panel">
+      <div class="cal-head">
+        <button class="icon-btn" data-action="month" data-delta="-1" aria-label="이전 달">${icon('back')}</button>
+        <h2 aria-live="polite">${y}년 ${m}월</h2>
+        <button class="icon-btn flip" data-action="month" data-delta="1" aria-label="다음 달">${icon('back')}</button>
+      </div>
+      <div class="cal" role="group" aria-label="${y}년 ${m}월 달력">
+        ${WEEKDAYS.map((w) => `<div class="cal-week" aria-hidden="true">${w}</div>`).join('')}
+        ${cells.join('')}
+      </div>
+      ${month !== today.slice(0, 7) ? '<button class="link-btn" data-action="month" data-delta="0">이번 달로</button>' : ''}
+    </section>
+
+    <section class="panel">
+      <h2>${m}월 마감 일정 ${events.length}건</h2>
+      ${events.length ? `<ul class="agenda">${events.map((e) => `
+        <li><a href="#/job/${encodeURIComponent(e.job.id)}" class="${DONE_STATUSES.includes(e.status) ? 'done' : ''}">
+          <span class="agenda-date${isUrgent(e.job) ? ' urgent' : ''}">${Number(e.job.deadline.slice(8))}일 (${dayName(e.job.deadline)})<br>${esc(dayLabel(e.job))}</span>
+          <span class="agenda-body"><b>${esc(e.job.title)}</b><span>${esc(e.job.org)} · ${esc(statusLabel(e.status))}</span></span>
+        </a></li>`).join('')}</ul>`
+        : '<p class="section-note">이 달에 마감되는 저장 공고가 없습니다. 공고를 저장하면 마감일이 달력에 표시됩니다.</p>'}
+    </section>
+
+    <section class="panel">
+      <h2>중장년 지원기관 바로가기</h2>
+      <ul class="link-list">${links.map((l) => safeUrl(l.url) ? `
+        <li><a href="${esc(l.url)}" target="_blank" rel="noopener">
+          <span><b>${esc(l.name)}</b><span>${esc(l.desc)}</span></span>${icon('external', true)}
+        </a></li>` : '').join('')}</ul>
+    </section>`;
 }
 
 function viewError() {
@@ -543,7 +632,7 @@ function render() {
   if (tab === 'job') app.innerHTML = viewJob(id);
   else if (tab === 'profile') app.innerHTML = viewProfile();
   else if (tab === 'saved') app.innerHTML = viewSaved();
-  else if (tab === 'support') app.innerHTML = viewPlaceholder(tab);
+  else if (tab === 'support') app.innerHTML = viewSupport();
   else app.innerHTML = viewToday();
 }
 
@@ -576,6 +665,14 @@ function handleAction(el) {
   if (action === 'filter') {
     state.savedFilter = el.dataset.filter;
     render();
+    return;
+  }
+  if (action === 'month') {
+    const delta = Number(el.dataset.delta);
+    const current = state.calMonth || seoulDate().slice(0, 7);
+    state.calMonth = delta === 0 ? null : shiftMonth(current, delta);
+    render();
+    document.querySelector(delta === 0 ? '[data-delta="1"]' : `[data-delta="${delta}"]`)?.focus();
     return;
   }
   const job = currentJob();
