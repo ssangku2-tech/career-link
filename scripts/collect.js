@@ -160,18 +160,51 @@ function buildOutput(allJobs, matching, now = new Date()) {
   return assemble(now, summary, jobs, false);
 }
 
-async function buildScoredOutput(allJobs, matching, scorer, now = new Date()) {
+// 출퇴근 시간을 붙이고 한도를 넘는 공고를 뺀다. 계산하지 못한 공고(주소 없음 등)는 남긴다.
+async function applyCommute(items, commuter, maxMinutes, log) {
+  const results = await commuter(items.map((item) => item.job), log);
+  const withCommute = items.map((item) => {
+    const c = results.get(item.job.id);
+    return c ? { ...item, job: { ...item.job, commuteMin: c.min, commuteMode: c.mode } } : item;
+  });
+  const kept = withCommute.filter((item) => item.job.commuteMin == null || item.job.commuteMin <= maxMinutes);
+  return { kept, computed: results.size, excluded: withCommute.length - kept.length };
+}
+
+// 상위 후보에 출퇴근 → AI 채점 순으로 적용한다. 각 단계가 실패하면 경고만 남기고 건너뛴다.
+async function buildFinalOutput(allJobs, matching, { commuter, maxCommute, scorer, log = console.log } = {}, now = new Date()) {
   const { today, ranked, summary } = prepare(allJobs, matching, now);
-  const targets = ranked.slice(0, MAX_SCORE_TARGETS);
-  const { scores, usage } = await scorer(targets.map((item) => ({
-    job: item.job,
-    hints: { keywords: item.keywords, bonuses: item.bonuses },
-  })));
-  const scored = targets
-    .filter((item) => scores.has(item.job.id))
-    .map((item) => ({ ...item.job, ...scores.get(item.job.id) }));
-  const output = assemble(now, { ...summary, scored: scored.length }, pickRecommendations(scored, today), true);
-  return { output, usage, scored: scored.map(toPublic) };
+  let targets = ranked.slice(0, MAX_SCORE_TARGETS);
+  const sum = { ...summary };
+
+  if (commuter) {
+    try {
+      const c = await applyCommute(targets, commuter, maxCommute, log);
+      targets = c.kept;
+      Object.assign(sum, { commuteComputed: c.computed, commuteExcluded: c.excluded });
+    } catch (err) {
+      log(`::warning::출퇴근 계산 실패: ${err.message} (출퇴근 없이 진행)`);
+    }
+  }
+
+  if (scorer) {
+    try {
+      const { scores, usage } = await scorer(targets.map((item) => ({
+        job: item.job,
+        hints: { keywords: item.keywords, bonuses: item.bonuses },
+      })));
+      const scored = targets
+        .filter((item) => scores.has(item.job.id))
+        .map((item) => ({ ...item.job, ...scores.get(item.job.id) }));
+      const output = assemble(now, { ...sum, scored: scored.length }, pickRecommendations(scored, today), true);
+      return { output, usage, scored: scored.map(toPublic) };
+    } catch (err) {
+      log(`::warning::AI 채점 실패: ${err.message} (키워드 순위로 진행)`);
+    }
+  }
+
+  const jobs = targets.slice(0, MAX_RECOMMEND).map((item) => ({ ...item.job, reason: heuristicReason(item) }));
+  return { output: assemble(now, sum, jobs, false) };
 }
 
 function writeOutput(output) {
@@ -207,38 +240,49 @@ async function main() {
     console.log('DATA_GO_KR_KEY가 없어 알리오는 건너뜀');
   }
 
-  // AI 채점이 실패해도 키워드 순위로 업데이트는 이어 간다
-  let output;
+  // 출퇴근: 카카오·ODsay 키가 모두 있을 때만
+  const kakaoKey = process.env.KAKAO_REST_KEY?.trim();
+  const odsayKey = process.env.ODSAY_API_KEY?.trim();
+  let commuter;
+  if (kakaoKey && odsayKey) {
+    const { createCommuter } = require('./commute');
+    commuter = createCommuter({ kakaoKey, odsayKey, originQuery: config.origin.name });
+  } else {
+    console.log('출퇴근 계산 건너뜀 (KAKAO_REST_KEY 또는 ODSAY_API_KEY 없음)');
+  }
+
+  // AI 채점: Anthropic 키가 있을 때만
   const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  let scorer;
+  let model;
   if (anthropicKey && !process.argv.includes('--no-score')) {
-    try {
-      const { createScorer, MODEL } = require('./score');
-      const result = await buildScoredOutput(jobs, config.matching, createScorer({ apiKey: anthropicKey, config }));
-      output = result.output;
-      const u = result.usage;
-      console.log(`AI 채점 ${MODEL}: ${output.summary.scored}건 · 입력 ${u.input} · 출력 ${u.output} 토큰 · 약 $${u.costUsd.toFixed(4)}`);
-      if (process.argv.includes('--dry-run')) {
-        console.log('채점한 공고 전체:');
-        result.scored.sort((a, b) => b.score - a.score).forEach((j) => {
-          console.log(`  ${j.score}점 ${j.org} | ${j.title}\n    이유: ${j.reason}`);
-          console.log(`    항목: ${j.matchItems.map((m) => `${m.name}(${m.level})`).join(', ')}`);
-          j.careerTranslation.forEach((t) => console.log(`    번역: ${t.from} → ${t.to}`));
-        });
-      }
-    } catch (err) {
-      console.log(`::warning::AI 채점 실패: ${err.message} (키워드 순위로 진행)`);
-    }
+    const { createScorer, MODEL } = require('./score');
+    scorer = createScorer({ apiKey: anthropicKey, config });
+    model = MODEL;
   } else {
     console.log('AI 채점 건너뜀 (ANTHROPIC_API_KEY 없음 또는 --no-score)');
   }
-  output ??= buildOutput(jobs, config.matching);
 
+  const result = await buildFinalOutput(jobs, config.matching, { commuter, maxCommute: config.commute.maxMinutes, scorer });
+  const { output } = result;
   const s = output.summary;
+  if (s.commuteComputed !== undefined) {
+    console.log(`출퇴근 계산 ${s.commuteComputed}건 · ${config.commute.maxMinutes}분 초과로 제외 ${s.commuteExcluded}건`);
+  }
+  if (result.usage) {
+    const u = result.usage;
+    console.log(`AI 채점 ${model}: ${s.scored}건 · 입력 ${u.input} · 출력 ${u.output} 토큰 · 약 $${u.costUsd.toFixed(4)}`);
+  }
   console.log(`원본 서울 ${rows.length}건 + 알리오 ${alioCount}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
 
   if (process.argv.includes('--dry-run') || key === 'sample') {
     console.log('저장하지 않음 (--dry-run 또는 샘플 키)');
-    output.jobs.forEach((j) => console.log(`- [${j.source}] ${j.score ?? '-'}점${j.isReference ? '(참고)' : ''} ${j.org} | ${j.title} | ${j.region} | ${j.reason}`));
+    (result.scored || output.jobs).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).forEach((j) => {
+      const commute = j.commuteMin == null ? '출퇴근 미계산' : `${j.commuteMode === 'car' ? '자차' : '대중교통'} ${j.commuteMin}분`;
+      console.log(`- [${j.source}] ${j.score ?? '-'}점 ${j.org} | ${j.title} | ${j.region} | ${commute}\n    이유: ${j.reason}`);
+      j.careerTranslation.forEach((t) => console.log(`    번역: ${t.from} → ${t.to}`));
+    });
+    console.log(`추천 결과: ${output.jobs.map((j) => `${j.score ?? '-'}점${j.isReference ? '(참고)' : ''}`).join(', ') || '없음'}`);
     return;
   }
   writeOutput(output);
@@ -252,4 +296,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildOutput, buildScoredOutput, pickRecommendations, passesFilter, hasAgeCap, dedupe };
+module.exports = { buildOutput, buildFinalOutput, pickRecommendations, passesFilter, hasAgeCap, dedupe };

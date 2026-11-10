@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { normalize, parseDate, parseSalary, parseSchedule } = require('./sources/seoul');
-const { buildOutput, buildScoredOutput, pickRecommendations, hasAgeCap } = require('./collect');
+const { buildOutput, buildFinalOutput, pickRecommendations, hasAgeCap } = require('./collect');
+const { parseTransit, parseDriving } = require('./commute');
 const alio = require('./sources/alio');
 
 const MATCHING = {
@@ -136,10 +137,10 @@ test('채점 결과를 공고에 붙이고 채점되지 않은 공고는 뺀다'
     scores: new Map([[items[0].job.id, { score: 88, reason: '직무가 맞습니다', matchItems: [{ name: 'B2B 영업', level: 'high' }], careerTranslation: [] }]]),
     usage: { input: 0, output: 0, costUsd: 0 },
   });
-  const { output } = await buildScoredOutput(
+  const { output } = await buildFinalOutput(
     [row(), row({ TITLE: '영업 고문 2' })].map(normalize),
     MATCHING,
-    fakeScorer,
+    { scorer: fakeScorer, log: () => {} },
     NOW,
   );
   assert.equal(output.isScored, true);
@@ -148,6 +149,41 @@ test('채점 결과를 공고에 붙이고 채점되지 않은 공고는 뺀다'
   assert.equal(output.jobs[0].score, 88);
   assert.equal(output.jobs[0].reason, '직무가 맞습니다');
   assert.ok(!JSON.stringify(output).includes('_filter'));
+});
+
+test('출퇴근 한도를 넘는 공고는 채점 전에 빼고, 계산 못 한 공고는 남긴다', async () => {
+  const jobs = [row({ TITLE: '영업 고문 가' }), row({ TITLE: '영업 고문 나' }), row({ TITLE: '영업 고문 다' })].map(normalize);
+  const [near, far] = jobs;
+  const commuter = async () => new Map([[near.id, { min: 40, mode: 'transit' }], [far.id, { min: 95, mode: 'transit' }]]);
+  const seen = [];
+  const scorer = async (items) => {
+    seen.push(...items.map((i) => i.job.title));
+    return { scores: new Map(items.map((i) => [i.job.id, { score: 80, reason: 'r', matchItems: [], careerTranslation: [] }])), usage: { input: 0, output: 0, costUsd: 0 } };
+  };
+  const { output } = await buildFinalOutput(jobs, MATCHING, { commuter, maxCommute: 70, scorer, log: () => {} }, NOW);
+  assert.deepEqual(seen.sort(), ['영업 고문 가', '영업 고문 다']);
+  assert.equal(output.summary.commuteExcluded, 1);
+  const nearJob = output.jobs.find((j) => j.title === '영업 고문 가');
+  assert.equal(nearJob.commuteMin, 40);
+  assert.equal(nearJob.commuteMode, 'transit');
+});
+
+test('출퇴근·채점이 실패해도 키워드 순위로 결과를 낸다', async () => {
+  const fail = async () => { throw new Error('boom'); };
+  const logs = [];
+  const { output } = await buildFinalOutput([row()].map(normalize), MATCHING, { commuter: fail, maxCommute: 70, scorer: fail, log: (m) => logs.push(m) }, NOW);
+  assert.equal(output.isScored, false);
+  assert.equal(output.jobs.length, 1);
+  assert.equal(logs.length, 2);
+});
+
+test('ODsay·카카오 응답에서 소요시간을 꺼낸다', () => {
+  const from = { x: 126.8326, y: 37.6346 };
+  assert.equal(parseTransit({ result: { path: [{ info: { totalTime: 52 } }, { info: { totalTime: 47 } }] } }, from, from), 47);
+  assert.equal(parseTransit({ error: { code: '-98', msg: '700m 이내' } }, from, { x: 126.8356, y: 37.6346 }), 4);
+  assert.throws(() => parseTransit({ error: [{ code: '500', message: 'ApiKeyAuthFailed' }] }, from, from), /ApiKeyAuthFailed/);
+  assert.equal(parseDriving({ routes: [{ result_code: 0, summary: { duration: 1500 } }] }), 25);
+  assert.throws(() => parseDriving({ routes: [{ result_code: 104, result_msg: '출발지와 도착지가 너무 가까움' }] }), /104/);
 });
 
 test('넓은 키워드 하나만 있으면 채점 대상이 아니다', () => {

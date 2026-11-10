@@ -53,6 +53,10 @@
    * 구현: scripts/score.js. @anthropic-ai/sdk의 messages.parse + zod 구조화 출력, claude-haiku-5-5, effort low, 10건씩 묶음, 하루 최대 40건(키워드 순위 상위)
    * 채점 실패(키 없음·오류·거부) 시 경고만 남기고 키워드 순위로 추천 (isScored=false)
 6. 출퇴근 계산: 근무지 주소 → 좌표(카카오 로컬) → 서울은 ODsay 대중교통, 경기는 자차 길찾기 → commuteMin, commuteMode
+   * 구현: scripts/commute.js. 키 KAKAO_REST_KEY(카카오 로컬 + 카카오모빌리티 자차), ODSAY_API_KEY
+   * ODsay 키는 URI 방식(https://ssangku2-tech.github.io 등록). Actions IP가 매번 바뀌어 서버(IP) 키를 쓸 수 없으므로, 호출 시 앱 주소를 Referer/Origin으로 보낸다 (2026-11-10 사용자 결정)
+   * AI 채점 전에 계산해 편도 한도(config commute.maxMinutes) 초과 공고를 빼서 채점 비용을 줄인다. 주소가 없거나 계산 실패한 공고는 남긴다
+   * 출퇴근 단계 전체가 실패하면 경고만 남기고 출퇴근 없이 진행
 7. 추천 선정: 70점 이상 점수순 최대 10건 / 5건 미만이면 60점대로 채우고 isReference=true / 동점이면 마감 D-5 이내 우선
 8. 결과 JSON 저장 + (선택) 텔레그램으로 80점 이상 요약 발송
 

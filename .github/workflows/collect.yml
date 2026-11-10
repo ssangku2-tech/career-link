@@ -31,6 +31,8 @@ jobs:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          ODSAY_API_KEY: ${{ secrets.ODSAY_API_KEY }}
         run: node scripts/collect.js
       - name: Commit & push
         run: |
