@@ -2,7 +2,10 @@ name: collect-jobs
 
 on:
   schedule:
-    - cron: '30 21 * * *' # 매일 06:30 KST
+    # GitHub는 정각·30분처럼 몰리는 시각의 예약을 늦추거나 건너뛸 수 있어 덜 붐비는 분으로 둔다.
+    - cron: '17 21 * * *' # 매일 06:17 KST (기본)
+    - cron: '47 22 * * *' # 매일 07:47 KST (예비: 오늘 데이터가 이미 있으면 건너뜀)
+    - cron: '23 1 * * *'  # 매일 10:23 KST (예비 2)
   workflow_dispatch:
     inputs:
       notify_test:
@@ -23,15 +26,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+      # 예약 실행은 오늘(KST) 데이터가 이미 있으면 건너뛴다. 수동 실행은 항상 수집한다.
+      - name: Check today
+        id: today
+        run: |
+          file="data/jobs/$(TZ=Asia/Seoul date +%Y-%m-%d).json"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ -f "$file" ]; then
+            echo "오늘 데이터($file)가 이미 있어 건너뜀"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v5
+        if: steps.today.outputs.skip != 'true'
         with:
           node-version: '24'
           cache: npm
       - name: Install
+        if: steps.today.outputs.skip != 'true'
         run: npm ci
       - name: Test
+        if: steps.today.outputs.skip != 'true'
         run: npm test
       - name: Collect
+        if: steps.today.outputs.skip != 'true'
         env:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
@@ -42,12 +60,13 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node scripts/collect.js
       - name: Telegram test
-        if: ${{ inputs.notify_test }}
+        if: ${{ steps.today.outputs.skip != 'true' && inputs.notify_test }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node scripts/notify.js --test
       - name: Commit & push
+        if: steps.today.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

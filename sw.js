@@ -1,5 +1,5 @@
 // 앱 파일을 바꾸면 VERSION을 올려야 사용자에게 새 버전이 전달된다.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `career-link-${VERSION}`;
 const SHELL = [
   './',

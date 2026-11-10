@@ -16,7 +16,7 @@ const MAX_SCORE_TARGETS = 40;
 const URGENT_DAYS = 5;
 
 // 그 자체로 유연근무인 형태
-const FLEX_FORM = /시간제|시간\(선택\)제|파트\s*타임|촉탁|위촉|자문|고문|프리랜서|재택/;
+const FLEX_FORM = /시간제|시간\(선택\)제|파트\s*타임|촉탁|위촉|자문|고문|프리랜서/; // 재택은 희망 근무 형태에서 뺐다 (2026-11-11)
 // 계약직은 주 5일 전일제가 대부분이라 중장년 가점이 있을 때만 통과시킨다
 const CONTRACT_FORM = /계약직|기간의 정함이 있는|기간제/;
 const CORE_WEIGHT = 2;
@@ -31,7 +31,7 @@ const BONUS = [
   [CAREER_BONUS, /경력\s*(1\d|[2-9]\d)\s*년\s*이상/],
 ];
 // 직무 키워드와 무관하게 같은 글자가 들어가는 표현
-const KEYWORD_NOISE = /통신판매|텔레마케|영업시간|영업장|영업일/g;
+const KEYWORD_NOISE = /통신판매|텔레마케|영업시간|영업장|영업일|송영/g; // 송영(送迎) 차량 운전
 
 function seoulToday(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);

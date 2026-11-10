@@ -262,6 +262,7 @@ test('같은 기관·제목·마감일은 한 건으로 합친다', () => {
 test('직무 키워드가 없거나 표현만 겹치면 추천하지 않는다', () => {
   assert.equal(run(row({ TITLE: '요양보호사', JOBS_NM: '요양보호사' })).jobs.length, 0);
   assert.equal(run(row({ TITLE: '영업시간 안내 시간제', JOBS_NM: '안내원' })).jobs.length, 0);
+  assert.equal(run(row({ TITLE: '스타렉스운전원(송영업무) 시간제', JOBS_NM: '운전원' })).jobs.length, 0);
 });
 
 test('가점이 많은 공고를 먼저 추천한다', () => {
