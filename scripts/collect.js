@@ -9,14 +9,20 @@ const ROOT = path.join(__dirname, '..');
 const MAX_RECOMMEND = 10;
 const URGENT_DAYS = 5;
 
-const WORK_FORM = /시간제|시간\(선택\)제|파트\s*타임|계약직|기간의 정함이 있는|기간제|촉탁|위촉|자문|고문|프리랜서|재택/;
+// 그 자체로 유연근무인 형태
+const FLEX_FORM = /시간제|시간\(선택\)제|파트\s*타임|촉탁|위촉|자문|고문|프리랜서|재택/;
+// 계약직은 주 5일 전일제가 대부분이라 중장년 가점이 있을 때만 통과시킨다
+const CONTRACT_FORM = /계약직|기간의 정함이 있는|기간제/;
+const CORE_WEIGHT = 2;
+const BROAD_WEIGHT = 1;
 const REMOTE_DENIED = /재택(근무)?\s*(불가|없음|안\s*됨)/g;
+const CAREER_BONUS = '경력 10년 이상';
 const BONUS = [
-  ['중장년 우대', /중장년/],
+  ['중장년 우대', /(?<!청)장년/], // "청장년"은 청년+장년이라 제외
   ['신중년', /신중년/],
   ['퇴직전문인력', /퇴직\s*전문/],
-  ['고령자 우대', /고령자/],
-  ['경력 10년 이상', /경력\s*(1\d|[2-9]\d)\s*년\s*이상/],
+  ['고령자 우대', /고령자|(?:4[5-9]|[5-6]\d)\s*세\s*이상/],
+  [CAREER_BONUS, /경력\s*(1\d|[2-9]\d)\s*년\s*이상/],
 ];
 // 직무 키워드와 무관하게 같은 글자가 들어가는 표현
 const KEYWORD_NOISE = /통신판매|텔레마케|영업시간|영업장|영업일/g;
@@ -40,32 +46,51 @@ function hasAgeCap(text) {
   return [...text.matchAll(/(\d{2})\s*세\s*(?:이하|미만)/g)].some((m) => Number(m[1]) >= 20);
 }
 
+const bonusesOf = (job) => BONUS.filter(([, re]) => re.test(job._filter.allText)).map(([name]) => name);
+// 경력 연수는 나이 조건이 아니므로 중장년 채용 여부에는 넣지 않는다
+const isSeniorHiring = (job) => bonusesOf(job).some((name) => name !== CAREER_BONUS);
+
 function passesFilter(job, today) {
   const { allText, career, days } = job._filter;
   if (!isTargetRegion(job)) return false;
   if (job.deadline && job.deadline < today) return false;
   if (hasAgeCap(allText) || career === '신입') return false;
+  const text = allText.replace(REMOTE_DENIED, '');
   const flexibleDays = days !== null && days >= 2 && days <= 4;
-  return flexibleDays || WORK_FORM.test(allText.replace(REMOTE_DENIED, ''));
+  if (flexibleDays || FLEX_FORM.test(text)) return true;
+  return CONTRACT_FORM.test(text) && bonusesOf(job).length > 0;
 }
 
-function annotate(job, jobKeywords) {
-  const titleAndJob = job._filter.titleAndJob.replace(KEYWORD_NOISE, '');
+// 다른 일치 키워드에 포함된 키워드는 빼서 "사업기획"과 "기획"을 두 번 세지 않는다
+function matchKeywords(text, words) {
+  const upper = text.replace(KEYWORD_NOISE, '').toUpperCase();
+  const found = words.filter((word) => upper.includes(word.toUpperCase()));
+  return found.filter((word) => !found.some((other) => other !== word && other.toUpperCase().includes(word.toUpperCase())));
+}
+
+function annotate(job, matching) {
+  const core = matchKeywords(job._filter.titleAndJob, matching.coreKeywords);
+  const broad = matchKeywords(job._filter.titleAndJob, matching.broadKeywords)
+    .filter((word) => !core.some((c) => c.toUpperCase().includes(word.toUpperCase())));
   return {
     job,
-    keywords: jobKeywords.filter((word) => titleAndJob.toUpperCase().includes(word.toUpperCase())),
-    bonuses: BONUS.filter(([, re]) => re.test(job._filter.allText)).map(([name]) => name),
+    keywords: [...core, ...broad],
+    weight: core.length * CORE_WEIGHT + broad.length * BROAD_WEIGHT,
+    bonuses: bonusesOf(job),
   };
 }
 
-// AI 채점(Phase 3) 전까지는 직무 키워드와 가점 개수로 순서를 정한다.
-function selectJobs(jobs, jobKeywords, today) {
+// AI 채점(Phase 3) 대상: 조건을 통과하고 경력 키워드 비중이 기준 이상인 공고
+function candidates(jobs, matching) {
+  return jobs.map((job) => annotate(job, matching)).filter((item) => item.weight >= matching.minWeight);
+}
+
+// AI 채점 전까지는 키워드 비중과 가점 개수로 순서를 정한다.
+function selectJobs(items, today) {
   const urgent = (job) => job.deadline !== null && daysBetween(today, job.deadline) <= URGENT_DAYS;
-  return jobs
-    .map((job) => annotate(job, jobKeywords))
-    .filter((item) => item.keywords.length > 0)
+  return [...items]
     .sort((a, b) =>
-      b.keywords.length - a.keywords.length
+      b.weight - a.weight
       || b.bonuses.length - a.bonuses.length
       || urgent(b.job) - urgent(a.job)
       || (a.job.deadline || '9999').localeCompare(b.job.deadline || '9999'))
@@ -80,18 +105,20 @@ function toPublic({ _filter, ...job }) {
   return job;
 }
 
-function buildOutput(allJobs, jobKeywords, now = new Date()) {
+function buildOutput(allJobs, matching, now = new Date()) {
   const today = seoulToday(now);
   const yesterday = seoulToday(new Date(now.getTime() - 86400000));
   const unique = dedupe(allJobs);
-  const matched = unique.filter((job) => passesFilter(job, today));
+  const filtered = unique.filter((job) => passesFilter(job, today) && (!matching.seniorOnly || isSeniorHiring(job)));
+  const matched = candidates(filtered, matching);
   const collected = unique.filter((job) => isTargetRegion(job) && job._filter.regDate && job._filter.regDate >= yesterday).length;
   return {
     isSample: false,
     isScored: false,
     generatedAt: now.toISOString(),
-    summary: { collected, matched: matched.length },
-    jobs: selectJobs(matched, jobKeywords, today).map(toPublic),
+    // filtered: 지역·근무형태 조건 통과, matched: 그중 경력 키워드 기준 통과 (AI 채점 대상)
+    summary: { collected, filtered: filtered.length, matched: matched.length },
+    jobs: selectJobs(matched, today).map(toPublic),
   };
 }
 
@@ -112,8 +139,9 @@ async function main() {
   const rows = await seoul.fetchAll(key);
   if (rows.length === 0) throw new Error('수집 결과가 0건입니다');
 
-  const output = buildOutput(rows.map(seoul.normalize), config.matching.jobKeywords);
-  console.log(`원본 ${rows.length}건 · 신규 ${output.summary.collected}건 · 조건 일치 ${output.summary.matched}건 · 추천 ${output.jobs.length}건`);
+  const output = buildOutput(rows.map(seoul.normalize), config.matching);
+  const s = output.summary;
+  console.log(`원본 ${rows.length}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
 
   if (process.argv.includes('--dry-run') || key === 'sample') {
     console.log('저장하지 않음 (--dry-run 또는 샘플 키)');

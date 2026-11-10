@@ -3,7 +3,11 @@ const assert = require('node:assert');
 const { normalize, parseDate, parseSalary, parseSchedule } = require('./sources/seoul');
 const { buildOutput, hasAgeCap } = require('./collect');
 
-const KEYWORDS = ['영업', '기획', '통신'];
+const MATCHING = {
+  coreKeywords: ['사업기획', '영업', '통신', 'B2B', '고문'],
+  broadKeywords: ['기획', '마케팅', '홍보'],
+  minWeight: 2,
+};
 const NOW = new Date('2026-11-10T00:00:00+09:00');
 
 const row = (over = {}) => ({
@@ -27,7 +31,38 @@ const row = (over = {}) => ({
   CONTACT_TELNO: '02-000-0000',
   ...over,
 });
-const run = (...rows) => buildOutput(rows.map(normalize), KEYWORDS, NOW);
+const run = (...rows) => buildOutput(rows.map(normalize), MATCHING, NOW);
+const fullTime = { TITLE: '영업 관리', EMP_TP_NM: '기간의 정함이 있는 근로계약', WORKDAY_WORKHR_CONT: '주 5일 근무' };
+
+test('주 5일 계약직은 중장년 가점이 있을 때만 통과한다', () => {
+  assert.equal(run(row(fullTime)).summary.filtered, 0);
+  assert.equal(run(row({ ...fullTime, PF_COND: '(준)고령자(50세이상)' })).summary.filtered, 1);
+  assert.equal(run(row({ ...fullTime, EMP_TP_NM: '기간의 정함이 있는 근로계약(시간(선택)제)' })).summary.filtered, 1);
+});
+
+test('다른 키워드에 포함된 키워드는 한 번만 센다', () => {
+  const [job] = run(row({ TITLE: '사업기획 고문', JOBS_NM: '기획 전문가' })).jobs;
+  assert.match(job.reason, /일치: 사업기획, 고문$/);
+});
+
+test('중장년 전용이면 중장년 채용 표시가 있는 공고만 남긴다', () => {
+  const senior = (...rows) => buildOutput(rows.map(normalize), { ...MATCHING, seniorOnly: true }, NOW).summary.filtered;
+  assert.equal(senior(row()), 0);
+  assert.equal(senior(row({ PF_COND: '(준)고령자(50세이상)' })), 1);
+  assert.equal(senior(row({ JOB_CONT: '신중년 경력형 일자리' })), 1);
+  assert.equal(senior(row({ JOB_CONT: '55세 이상 지원 가능' })), 1);
+  assert.equal(senior(row({ JOB_CONT: '청장년 누구나' })), 0);
+  assert.equal(senior(row({ JOB_CONT: '경력 10년 이상' })), 0);
+});
+
+test('HTML 엔티티를 원래 문자로 돌린다', () => {
+  assert.equal(normalize(row({ TITLE: '강남구청 &amp; 고용센터' })).title, '강남구청 & 고용센터');
+});
+
+test('넓은 키워드 하나만 있으면 채점 대상이 아니다', () => {
+  assert.equal(run(row({ TITLE: '홍보 담당 시간제', JOBS_NM: '사무원' })).summary.matched, 0);
+  assert.equal(run(row({ TITLE: '마케팅 홍보 시간제', JOBS_NM: '사무원' })).summary.matched, 1);
+});
 
 test('마감일 형식을 해석한다', () => {
   assert.equal(parseDate('26-11-13'), '2026-11-13');

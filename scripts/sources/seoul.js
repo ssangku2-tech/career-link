@@ -56,7 +56,12 @@ async function fetchAll(key) {
   return rows;
 }
 
-const clean = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+// API가 "&amp;"처럼 HTML 엔티티로 준 글자를 원래 문자로 돌린다 (화면에서 다시 이스케이프한다)
+const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'" };
+const clean = (v) => String(v ?? '')
+  .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (e) => ENTITIES[e])
+  .replace(/\s+/g, ' ')
+  .trim();
 
 // "26-11-13", "채용시까지  26-11-15" → "2026-11-13". 날짜가 없으면 상시 채용(null).
 function parseDate(text) {
@@ -120,7 +125,10 @@ function parseSalary(text, code, schedule) {
   else if (code === 'H' && schedule.weeklyHours) monthly = min * schedule.weeklyHours * WEEKS_PER_MONTH;
   const salaryMonthly = monthly === null ? null : Math.round(monthly / 1000) * 1000;
 
-  const won = (n) => `${n.toLocaleString('ko-KR')}원`;
+  // 월급·연봉은 만원 단위(예: 260만원), 시급·일급은 원 단위로 표시한다
+  const won = (n) => (code === 'M' || code === 'Y') && n >= 10000
+    ? `${Math.round(n / 10000).toLocaleString('ko-KR')}만원`
+    : `${n.toLocaleString('ko-KR')}원`;
   let salaryText = max && max !== min ? `${kind} ${won(min)} ~ ${won(max)}` : `${kind} ${won(min)}${/이상/.test(raw) ? ' 이상' : ''}`;
   if (code !== 'M' && salaryMonthly) salaryText += ` (월 환산 약 ${Math.round(salaryMonthly / 10000)}만원)`;
   return { salaryText, salaryMonthly };
