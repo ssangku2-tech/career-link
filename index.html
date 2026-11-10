@@ -68,7 +68,7 @@
   .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   .org { font-size: 13px; color: var(--muted); }
   .card-title { font-size: 16px; font-weight: 700; line-height: 1.4; margin-top: 2px; }
-  .score { flex: none; min-width: 48px; padding: 4px 8px; border-radius: 8px; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .score { flex: none; white-space: nowrap; min-width: 48px; padding: 4px 8px; border-radius: 8px; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
   .score.ref { background: var(--card); color: var(--navy); box-shadow: inset 0 0 0 1px var(--navy); }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -214,6 +214,11 @@ function commuteText(job) {
   return `${state.config.origin.name} → ${job.commuteMode === 'car' ? '자차' : '대중교통'} 약 ${job.commuteMin}분`;
 }
 
+function scoreBadge(job) {
+  if (job.score == null) return '<div class="score ref">채점 전</div>';
+  return `<div class="score${job.isReference ? ' ref' : ''}" aria-label="적합도 ${esc(job.score)}점">${esc(job.score)}점</div>`;
+}
+
 function jobCard(job) {
   const urgent = isUrgent(job);
   const cond = [job.workDays, job.workHours, job.remote !== 'none' ? REMOTE[job.remote] : ''].filter(Boolean).join(' · ');
@@ -224,11 +229,11 @@ function jobCard(job) {
           <div class="org">${esc(job.org)} · ${esc(job.orgType)}</div>
           <h3 class="card-title">${esc(job.title)}</h3>
         </div>
-        <div class="score${job.isReference ? ' ref' : ''}" aria-label="적합도 ${esc(job.score)}점">${esc(job.score)}점</div>
+        ${scoreBadge(job)}
       </div>
       <div class="chips">
         <span class="chip">${esc(job.employType)}</span>
-        <span class="chip">${esc(job.contractTerm)}</span>
+        ${job.contractTerm ? `<span class="chip">${esc(job.contractTerm)}</span>` : ''}
         <span class="chip">${esc(job.region)}</span>
         <span class="chip${urgent ? ' urgent' : ''}">${urgent ? icon('clock', true) : ''}${esc(dayLabel(job))}</span>
       </div>
@@ -255,6 +260,7 @@ function viewToday() {
       <p class="date">${esc(headerDate(data.generatedAt))}</p>
       <h1 class="page-title" tabindex="-1">오늘의 추천 ${data.jobs.length}건</h1>
       ${data.isSample ? '<p class="notice">지금은 화면 확인용 샘플입니다. 기관과 공고는 모두 가상입니다.</p>' : ''}
+      ${data.isScored === false ? '<p class="notice">아직 AI 채점 전입니다. 제목과 직종에 내 경력 키워드가 있는 공고를 골랐습니다.</p>' : ''}
     </header>
     <section class="tiles" aria-label="오늘 요약">
       ${tiles.map(([label, value, warn]) => `
@@ -306,6 +312,12 @@ function viewJob(id) {
       </div>
     </header>
 
+    ${job.score == null ? `
+    <section class="panel">
+      <h2>선정 근거</h2>
+      <p>${esc(job.reason)}</p>
+      <p class="section-note">적합도 점수와 경력 번역은 AI 채점 기능이 추가되면 표시됩니다.</p>
+    </section>` : `
     <section class="panel">
       <div class="meter-head"><h2 style="margin:0">적합도</h2><b>${esc(job.score)}점</b></div>
       <div class="meter" role="meter" aria-label="적합도" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${esc(job.score)}"><i style="width:${Math.max(0, Math.min(100, Number(job.score) || 0))}%"></i></div>
@@ -313,14 +325,15 @@ function viewJob(id) {
       <div class="chips">
         ${job.matchItems.map((m) => `<span class="chip${m.level === 'low' ? ' line' : ''}">${esc(m.name)} <span class="level">${esc(LEVELS[m.level] || '')}</span></span>`).join('')}
       </div>
-    </section>
+    </section>`}
 
+    ${job.careerTranslation.length ? `
     <section class="panel">
       <h2>경력 번역</h2>
       <ul class="trans">
         ${job.careerTranslation.map((t) => `<li><div class="from">${esc(t.from)}</div><div class="to">${icon('arrow', true)}<span>${esc(t.to)}</span></div></li>`).join('')}
       </ul>
-    </section>
+    </section>` : ''}
 
     <section class="panel">
       <h2>근무 조건</h2>
