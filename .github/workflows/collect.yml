@@ -17,16 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
+          cache: npm
+      - name: Install
+        run: npm ci
       - name: Test
-        run: node --test scripts/collect.test.js
+        run: npm test
       - name: Collect
         env:
           SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node scripts/collect.js
       - name: Commit & push
         run: |

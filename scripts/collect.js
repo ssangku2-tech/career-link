@@ -8,6 +8,11 @@ const alio = require('./sources/alio');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_RECOMMEND = 10;
+const MIN_RECOMMEND = 5;
+const RECOMMEND_SCORE = 70;
+const REFERENCE_SCORE = 60;
+// 하루 채점 비용의 상한. 키워드 순위 상위만 AI로 채점한다.
+const MAX_SCORE_TARGETS = 40;
 const URGENT_DAYS = 5;
 
 // 그 자체로 유연근무인 형태
@@ -91,31 +96,44 @@ function candidates(jobs, matching) {
     .filter((item) => item.weight >= matching.minWeight && (!item.job._filter.requireCore || item.core.length > 0));
 }
 
-// AI 채점 전까지는 키워드 비중과 가점 개수로 순서를 정한다.
-function selectJobs(items, today) {
-  const urgent = (job) => job.deadline !== null && daysBetween(today, job.deadline) <= URGENT_DAYS;
-  return [...items]
-    .sort((a, b) =>
-      b.weight - a.weight
-      || b.bonuses.length - a.bonuses.length
-      || urgent(b.job) - urgent(a.job)
-      || (a.job.deadline || '9999').localeCompare(b.job.deadline || '9999'))
-    .slice(0, MAX_RECOMMEND)
-    .map(({ job, keywords, bonuses }) => ({
-      ...job,
-      reason: [
-        `제목·직종 일치: ${keywords.join(', ')}`,
-        bonuses.length ? `가점: ${bonuses.join(', ')}` : '',
-        job._filter.seniorExempt ? '공공기관 비정규 경력 채용' : '',
-      ].filter(Boolean).join(' · '),
-    }));
+const isUrgent = (job, today) => job.deadline !== null && daysBetween(today, job.deadline) <= URGENT_DAYS;
+const byDeadline = (a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999');
+
+// 키워드 비중과 가점 개수 순서. 채점 대상을 고르거나 채점 실패 시 추천에 쓴다.
+function rankHeuristic(items, today) {
+  return [...items].sort((a, b) =>
+    b.weight - a.weight
+    || b.bonuses.length - a.bonuses.length
+    || isUrgent(b.job, today) - isUrgent(a.job, today)
+    || byDeadline(a.job, b.job));
+}
+
+function heuristicReason({ job, keywords, bonuses }) {
+  return [
+    `제목·직종 일치: ${keywords.join(', ')}`,
+    bonuses.length ? `가점: ${bonuses.join(', ')}` : '',
+    job._filter.seniorExempt ? '공공기관 비정규 경력 채용' : '',
+  ].filter(Boolean).join(' · ');
+}
+
+// CLAUDE.md 7단계: 70점 이상 점수순 최대 10건, 5건 미만이면 60점대로 5건까지 채우고 참고 표시.
+// 동점이면 마감 D-5 이내를 먼저 둔다.
+function pickRecommendations(scoredJobs, today) {
+  const order = (a, b) => b.score - a.score || isUrgent(b, today) - isUrgent(a, today) || byDeadline(a, b);
+  const top = scoredJobs.filter((j) => j.score >= RECOMMEND_SCORE).sort(order).slice(0, MAX_RECOMMEND);
+  if (top.length >= MIN_RECOMMEND) return top.map((j) => ({ ...j, isReference: false }));
+  const refs = scoredJobs
+    .filter((j) => j.score >= REFERENCE_SCORE && j.score < RECOMMEND_SCORE)
+    .sort(order)
+    .slice(0, MIN_RECOMMEND - top.length);
+  return [...top.map((j) => ({ ...j, isReference: false })), ...refs.map((j) => ({ ...j, isReference: true }))];
 }
 
 function toPublic({ _filter, ...job }) {
   return job;
 }
 
-function buildOutput(allJobs, matching, now = new Date()) {
+function prepare(allJobs, matching, now) {
   const today = seoulToday(now);
   const yesterday = seoulToday(new Date(now.getTime() - 86400000));
   const unique = dedupe(allJobs);
@@ -124,13 +142,36 @@ function buildOutput(allJobs, matching, now = new Date()) {
   const matched = candidates(filtered, matching);
   const collected = unique.filter((job) => isTargetRegion(job) && job._filter.regDate && job._filter.regDate >= yesterday).length;
   return {
-    isSample: false,
-    isScored: false,
-    generatedAt: now.toISOString(),
+    today,
+    ranked: rankHeuristic(matched, today),
     // filtered: 지역·근무형태 조건 통과, matched: 그중 경력 키워드 기준 통과 (AI 채점 대상)
     summary: { collected, filtered: filtered.length, matched: matched.length },
-    jobs: selectJobs(matched, today).map(toPublic),
   };
+}
+
+function assemble(now, summary, jobs, isScored) {
+  return { isSample: false, isScored, generatedAt: now.toISOString(), summary, jobs: jobs.map(toPublic) };
+}
+
+// 채점 없이 키워드 순위로 고른다 (AI 키가 없거나 채점이 실패했을 때)
+function buildOutput(allJobs, matching, now = new Date()) {
+  const { ranked, summary } = prepare(allJobs, matching, now);
+  const jobs = ranked.slice(0, MAX_RECOMMEND).map((item) => ({ ...item.job, reason: heuristicReason(item) }));
+  return assemble(now, summary, jobs, false);
+}
+
+async function buildScoredOutput(allJobs, matching, scorer, now = new Date()) {
+  const { today, ranked, summary } = prepare(allJobs, matching, now);
+  const targets = ranked.slice(0, MAX_SCORE_TARGETS);
+  const { scores, usage } = await scorer(targets.map((item) => ({
+    job: item.job,
+    hints: { keywords: item.keywords, bonuses: item.bonuses },
+  })));
+  const scored = targets
+    .filter((item) => scores.has(item.job.id))
+    .map((item) => ({ ...item.job, ...scores.get(item.job.id) }));
+  const output = assemble(now, { ...summary, scored: scored.length }, pickRecommendations(scored, today), true);
+  return { output, usage, scored: scored.map(toPublic) };
 }
 
 function writeOutput(output) {
@@ -166,13 +207,38 @@ async function main() {
     console.log('DATA_GO_KR_KEY가 없어 알리오는 건너뜀');
   }
 
-  const output = buildOutput(jobs, config.matching);
+  // AI 채점이 실패해도 키워드 순위로 업데이트는 이어 간다
+  let output;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (anthropicKey && !process.argv.includes('--no-score')) {
+    try {
+      const { createScorer, MODEL } = require('./score');
+      const result = await buildScoredOutput(jobs, config.matching, createScorer({ apiKey: anthropicKey, config }));
+      output = result.output;
+      const u = result.usage;
+      console.log(`AI 채점 ${MODEL}: ${output.summary.scored}건 · 입력 ${u.input} · 출력 ${u.output} 토큰 · 약 $${u.costUsd.toFixed(4)}`);
+      if (process.argv.includes('--dry-run')) {
+        console.log('채점한 공고 전체:');
+        result.scored.sort((a, b) => b.score - a.score).forEach((j) => {
+          console.log(`  ${j.score}점 ${j.org} | ${j.title}\n    이유: ${j.reason}`);
+          console.log(`    항목: ${j.matchItems.map((m) => `${m.name}(${m.level})`).join(', ')}`);
+          j.careerTranslation.forEach((t) => console.log(`    번역: ${t.from} → ${t.to}`));
+        });
+      }
+    } catch (err) {
+      console.log(`::warning::AI 채점 실패: ${err.message} (키워드 순위로 진행)`);
+    }
+  } else {
+    console.log('AI 채점 건너뜀 (ANTHROPIC_API_KEY 없음 또는 --no-score)');
+  }
+  output ??= buildOutput(jobs, config.matching);
+
   const s = output.summary;
   console.log(`원본 서울 ${rows.length}건 + 알리오 ${alioCount}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
 
   if (process.argv.includes('--dry-run') || key === 'sample') {
     console.log('저장하지 않음 (--dry-run 또는 샘플 키)');
-    output.jobs.forEach((j) => console.log(`- [${j.source}] ${j.org} | ${j.title} | ${j.region} | ${j.salaryText} | ${j.reason}`));
+    output.jobs.forEach((j) => console.log(`- [${j.source}] ${j.score ?? '-'}점${j.isReference ? '(참고)' : ''} ${j.org} | ${j.title} | ${j.region} | ${j.reason}`));
     return;
   }
   writeOutput(output);
@@ -186,4 +252,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildOutput, passesFilter, hasAgeCap, dedupe };
+module.exports = { buildOutput, buildScoredOutput, pickRecommendations, passesFilter, hasAgeCap, dedupe };

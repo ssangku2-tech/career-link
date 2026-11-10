@@ -1,0 +1,13 @@
+{
+  "name": "career-link",
+  "private": true,
+  "description": "중장년 재취업 공고 비서 PWA - 수집·채점 스크립트",
+  "scripts": {
+    "test": "node --test scripts/collect.test.js",
+    "collect": "node scripts/collect.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.7.0",
+    "zod": "^4.6.7"
+  }
+}

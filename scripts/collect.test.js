@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { normalize, parseDate, parseSalary, parseSchedule } = require('./sources/seoul');
-const { buildOutput, hasAgeCap } = require('./collect');
+const { buildOutput, buildScoredOutput, pickRecommendations, hasAgeCap } = require('./collect');
 const alio = require('./sources/alio');
 
 const MATCHING = {
@@ -101,6 +101,53 @@ test('알리오의 경기 공고는 고양 언급이 있을 때만 통과한다'
   const matched = (over) => runMixed([], [alioRow({ workRgnNmLst: '경기', ...over })]).summary.matched;
   assert.equal(matched({}), 0);
   assert.equal(matched({ aplyQlfcCn: '근무지: 고양시 덕양구' }), 1);
+});
+
+const TODAY = '2026-11-10';
+const scoredJob = (id, score, deadline = '2026-11-30') => ({ id, score, deadline });
+
+test('70점 이상을 점수순으로 최대 10건 추천한다', () => {
+  const jobs = Array.from({ length: 12 }, (_, i) => scoredJob(`j${i}`, 71 + i));
+  const picked = pickRecommendations(jobs, TODAY);
+  assert.equal(picked.length, 10);
+  assert.equal(picked[0].score, 82);
+  assert.ok(picked.every((j) => !j.isReference));
+});
+
+test('70점 이상이 5건 미만이면 60점대로 5건까지 채우고 참고로 표시한다', () => {
+  const picked = pickRecommendations([
+    scoredJob('a', 80), scoredJob('b', 72), scoredJob('c', 69), scoredJob('d', 65), scoredJob('e', 61), scoredJob('f', 60), scoredJob('g', 59),
+  ], TODAY);
+  assert.deepEqual(picked.map((j) => j.id), ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(picked.map((j) => j.isReference), [false, false, true, true, true]);
+});
+
+test('60점 미만만 있으면 추천하지 않는다', () => {
+  assert.equal(pickRecommendations([scoredJob('a', 59), scoredJob('b', 30)], TODAY).length, 0);
+});
+
+test('동점이면 마감 D-5 이내 공고를 먼저 둔다', () => {
+  const picked = pickRecommendations([scoredJob('later', 75, '2026-11-30'), scoredJob('soon', 75, '2026-11-13')], TODAY);
+  assert.deepEqual(picked.map((j) => j.id), ['soon', 'later']);
+});
+
+test('채점 결과를 공고에 붙이고 채점되지 않은 공고는 뺀다', async () => {
+  const fakeScorer = async (items) => ({
+    scores: new Map([[items[0].job.id, { score: 88, reason: '직무가 맞습니다', matchItems: [{ name: 'B2B 영업', level: 'high' }], careerTranslation: [] }]]),
+    usage: { input: 0, output: 0, costUsd: 0 },
+  });
+  const { output } = await buildScoredOutput(
+    [row(), row({ TITLE: '영업 고문 2' })].map(normalize),
+    MATCHING,
+    fakeScorer,
+    NOW,
+  );
+  assert.equal(output.isScored, true);
+  assert.equal(output.summary.scored, 1);
+  assert.equal(output.jobs.length, 1);
+  assert.equal(output.jobs[0].score, 88);
+  assert.equal(output.jobs[0].reason, '직무가 맞습니다');
+  assert.ok(!JSON.stringify(output).includes('_filter'));
 });
 
 test('넓은 키워드 하나만 있으면 채점 대상이 아니다', () => {

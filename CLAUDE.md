@@ -50,6 +50,8 @@
 5. AI 적합도 채점: 1차 통과분만 Claude haiku로 0~100점 + 한 줄 이유 + 항목별 일치(B2B영업/통신산업/근무형태 등) + 경력 번역 2~3줄
    * 모델: claude-haiku 계열, 공고는 묶어서 한 번에 보냄, max_tokens 작게 (비용 최소화)
    * 키: ANTHROPIC_API_KEY (Console에서 키별 월 사용량 제한 설정)
+   * 구현: scripts/score.js. @anthropic-ai/sdk의 messages.parse + zod 구조화 출력, claude-haiku-5-5, effort low, 10건씩 묶음, 하루 최대 40건(키워드 순위 상위)
+   * 채점 실패(키 없음·오류·거부) 시 경고만 남기고 키워드 순위로 추천 (isScored=false)
 6. 출퇴근 계산: 근무지 주소 → 좌표(카카오 로컬) → 서울은 ODsay 대중교통, 경기는 자차 길찾기 → commuteMin, commuteMode
 7. 추천 선정: 70점 이상 점수순 최대 10건 / 5건 미만이면 60점대로 채우고 isReference=true / 동점이면 마감 D-5 이내 우선
 8. 결과 JSON 저장 + (선택) 텔레그램으로 80점 이상 요약 발송
