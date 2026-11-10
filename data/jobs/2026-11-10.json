@@ -1,12 +1,14 @@
 {
   "isSample": false,
   "isScored": true,
-  "generatedAt": "2026-11-10T03:12:46.531Z",
+  "generatedAt": "2026-11-10T04:09:48.508Z",
   "summary": {
     "collected": 521,
     "filtered": 1724,
     "matched": 4,
-    "scored": 4
+    "commuteComputed": 4,
+    "commuteExcluded": 1,
+    "scored": 3
   },
   "jobs": [
     {
@@ -29,93 +31,43 @@
       "documents": "이력서,자기소개서,졸업증명서,경력증명서",
       "deadline": "2026-12-12",
       "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=B2B%EC%98%81%EC%97%85%EC%A0%84%EB%AC%B8%EA%B0%80%20%EB%AA%A8%EC%A7%91%ED%95%A9%EB%8B%88%EB%8B%A4&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": 78,
-      "reason": "B2B 영업과 신규 거래처 개척 경력이 직접 맞고 주 3일 근무와 중장년 환영 조건도 적합합니다. 다만 식품 업종 경험은 없습니다.",
+      "score": 76,
+      "reason": "B2B 영업과 신규 거래처 개척 경력은 잘 맞지만 식품·외식 분야 경력 요구가 있어 감점했습니다.",
       "matchItems": [
         {
           "name": "B2B 영업",
           "level": "high"
         },
         {
-          "name": "통신 산업",
+          "name": "신규 거래처 개척",
+          "level": "high"
+        },
+        {
+          "name": "식품 업계 경력",
           "level": "low"
         },
         {
           "name": "근무 형태",
-          "level": "high"
-        },
-        {
-          "name": "경력 수준",
           "level": "mid"
         }
       ],
       "careerTranslation": [
         {
           "from": "B2B 영업, 대리점(채널) 관리",
-          "to": "B2B 영업, 채널영업, 신규 거래처 발굴"
+          "to": "B2B 판매, 채널영업"
         },
         {
-          "from": "사업기획, 기업 고객 제안·계약",
-          "to": "영업구조 제안, 납품조건·거래조건 설계"
+          "from": "기업 고객 제안·계약",
+          "to": "견적·협상·계약 진행, 납품조건 제안"
+        },
+        {
+          "from": "마케팅 전략",
+          "to": "잠재거래처 발굴, 영업자산 구축"
         }
       ],
-      "commuteMin": null,
-      "commuteMode": null,
+      "commuteMin": 44,
+      "commuteMode": "transit",
       "isReference": false
-    },
-    {
-      "id": "seoul-908dc47f597d",
-      "source": "seoul",
-      "org": "주식회사 기가넷시스템",
-      "orgType": "기업",
-      "title": "【 강남구청 구인기업 초대의 날 & 강남고...",
-      "region": "서울 강남구",
-      "address": "서울특별시 강남구 개포로25길 9-6, 3층(방주빌딩)",
-      "employType": "계약직",
-      "workDays": "주 5일",
-      "workHours": "09:00~18:00",
-      "remote": "none",
-      "salaryText": "연봉 4,000만원 ~ 4,200만원 (월 환산 약 333만원)",
-      "salaryMonthly": 3333000,
-      "insurance": "4대보험",
-      "contractTerm": "기간제 (공고 확인)",
-      "ageCondition": "(준)고령자(50세이상)",
-      "documents": "이력서,자기소개서,졸업증명서",
-      "deadline": "2026-12-15",
-      "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=%E3%80%90%20%EA%B0%95%EB%82%A8%EA%B5%AC%EC%B2%AD%20%EA%B5%AC%EC%9D%B8%EA%B8%B0%EC%97%85%20%EC%B4%88%EB%8C%80%EC%9D%98%20%EB%82%A0%20%26%20%EA%B0%95%EB%82%A8%EA%B3%A0&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
-      "score": 66,
-      "reason": "통신·ICT 기술영업 경력을 살릴 수 있으나 주 5일 풀타임과 기술지원 업무 비중이 부담입니다.",
-      "matchItems": [
-        {
-          "name": "통신 산업",
-          "level": "high"
-        },
-        {
-          "name": "B2B 영업",
-          "level": "mid"
-        },
-        {
-          "name": "근무 형태",
-          "level": "low"
-        },
-        {
-          "name": "중장년 친화",
-          "level": "high"
-        }
-      ],
-      "careerTranslation": [
-        {
-          "from": "B2B 영업, 기업 고객 제안·계약",
-          "to": "기술영업, 법인 고객 솔루션 제안"
-        },
-        {
-          "from": "통신 대기업 서비스 기획",
-          "to": "네트워크·CCTV 등 ICT 서비스 운영 이해"
-        }
-      ],
-      "commuteMin": null,
-      "commuteMode": null,
-      "isReference": true
     }
   ]
 }
