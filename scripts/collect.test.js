@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { normalize, parseDate, parseSalary, parseSchedule } = require('./sources/seoul');
 const { buildOutput, hasAgeCap } = require('./collect');
+const alio = require('./sources/alio');
 
 const MATCHING = {
   coreKeywords: ['사업기획', '영업', '통신', 'B2B', '고문'],
@@ -57,6 +58,49 @@ test('중장년 전용이면 중장년 채용 표시가 있는 공고만 남긴�
 
 test('HTML 엔티티를 원래 문자로 돌린다', () => {
   assert.equal(normalize(row({ TITLE: '강남구청 &amp; 고용센터' })).title, '강남구청 & 고용센터');
+});
+
+const alioRow = (over = {}) => ({
+  recrutPblntSn: 1001,
+  instNm: '가상진흥원',
+  hireTypeNmLst: '비정규직',
+  workRgnNmLst: '서울',
+  recrutSeNm: '경력',
+  pbancBgngYmd: '20261109',
+  pbancEndYmd: '20261125',
+  recrutPbancTtl: '사업기획 전문위원 채용',
+  aplyQlfcCn: '관련 경력 10년 이상',
+  prefCn: '',
+  prefCondCn: '',
+  ...over,
+});
+const runMixed = (seoulRows, alioRows) => buildOutput(
+  [...seoulRows.map(normalize), ...alioRows.map(alio.normalize)],
+  { ...MATCHING, seniorOnly: true },
+  NOW,
+);
+
+test('알리오는 중장년 표시 없이 경력직·비정규·핵심 키워드로 통과한다', () => {
+  const out = runMixed([], [alioRow()]);
+  assert.equal(out.summary.matched, 1);
+  assert.equal(out.jobs[0].url, 'https://job.alio.go.kr/recruitview.do?idx=1001');
+  assert.equal(out.jobs[0].deadline, '2026-11-25');
+  assert.match(out.jobs[0].reason, /공공기관 비정규 경력 채용/);
+});
+
+test('알리오의 신입·정규직·인턴·일용직·넓은 키워드만 일치는 제외한다', () => {
+  const matched = (over) => runMixed([], [alioRow(over)]).summary.matched;
+  assert.equal(matched({ recrutSeNm: '신입' }), 0);
+  assert.equal(matched({ hireTypeNmLst: '정규직' }), 0);
+  assert.equal(matched({ recrutPbancTtl: '사업기획 인턴 채용' }), 0);
+  assert.equal(matched({ recrutPbancTtl: '통신 설비 일용근로자 모집' }), 0);
+  assert.equal(matched({ recrutPbancTtl: '마케팅 홍보 계약직 채용' }), 0);
+});
+
+test('알리오의 경기 공고는 고양 언급이 있을 때만 통과한다', () => {
+  const matched = (over) => runMixed([], [alioRow({ workRgnNmLst: '경기', ...over })]).summary.matched;
+  assert.equal(matched({}), 0);
+  assert.equal(matched({ aplyQlfcCn: '근무지: 고양시 덕양구' }), 1);
 });
 
 test('넓은 키워드 하나만 있으면 채점 대상이 아니다', () => {

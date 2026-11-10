@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const seoul = require('./sources/seoul');
+const alio = require('./sources/alio');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_RECOMMEND = 10;
@@ -55,6 +56,8 @@ function passesFilter(job, today) {
   if (!isTargetRegion(job)) return false;
   if (job.deadline && job.deadline < today) return false;
   if (hasAgeCap(allText) || career === '신입') return false;
+  // 알리오는 고용유형 코드로 비정규 여부를 알려 준다
+  if (job._filter.nonRegular !== undefined) return job._filter.nonRegular;
   const text = allText.replace(REMOTE_DENIED, '');
   const flexibleDays = days !== null && days >= 2 && days <= 4;
   if (flexibleDays || FLEX_FORM.test(text)) return true;
@@ -74,6 +77,7 @@ function annotate(job, matching) {
     .filter((word) => !core.some((c) => c.toUpperCase().includes(word.toUpperCase())));
   return {
     job,
+    core,
     keywords: [...core, ...broad],
     weight: core.length * CORE_WEIGHT + broad.length * BROAD_WEIGHT,
     bonuses: bonusesOf(job),
@@ -82,7 +86,9 @@ function annotate(job, matching) {
 
 // AI 채점(Phase 3) 대상: 조건을 통과하고 경력 키워드 비중이 기준 이상인 공고
 function candidates(jobs, matching) {
-  return jobs.map((job) => annotate(job, matching)).filter((item) => item.weight >= matching.minWeight);
+  return jobs
+    .map((job) => annotate(job, matching))
+    .filter((item) => item.weight >= matching.minWeight && (!item.job._filter.requireCore || item.core.length > 0));
 }
 
 // AI 채점 전까지는 키워드 비중과 가점 개수로 순서를 정한다.
@@ -97,7 +103,11 @@ function selectJobs(items, today) {
     .slice(0, MAX_RECOMMEND)
     .map(({ job, keywords, bonuses }) => ({
       ...job,
-      reason: [`제목·직종 일치: ${keywords.join(', ')}`, bonuses.length ? `가점: ${bonuses.join(', ')}` : ''].filter(Boolean).join(' · '),
+      reason: [
+        `제목·직종 일치: ${keywords.join(', ')}`,
+        bonuses.length ? `가점: ${bonuses.join(', ')}` : '',
+        job._filter.seniorExempt ? '공공기관 비정규 경력 채용' : '',
+      ].filter(Boolean).join(' · '),
     }));
 }
 
@@ -109,7 +119,8 @@ function buildOutput(allJobs, matching, now = new Date()) {
   const today = seoulToday(now);
   const yesterday = seoulToday(new Date(now.getTime() - 86400000));
   const unique = dedupe(allJobs);
-  const filtered = unique.filter((job) => passesFilter(job, today) && (!matching.seniorOnly || isSeniorHiring(job)));
+  const seniorOk = (job) => !matching.seniorOnly || job._filter.seniorExempt || isSeniorHiring(job);
+  const filtered = unique.filter((job) => passesFilter(job, today) && seniorOk(job));
   const matched = candidates(filtered, matching);
   const collected = unique.filter((job) => isTargetRegion(job) && job._filter.regDate && job._filter.regDate >= yesterday).length;
   return {
@@ -138,14 +149,30 @@ async function main() {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
   const rows = await seoul.fetchAll(key);
   if (rows.length === 0) throw new Error('수집 결과가 0건입니다');
+  const jobs = rows.map(seoul.normalize);
 
-  const output = buildOutput(rows.map(seoul.normalize), config.matching);
+  // 알리오는 보조 소스라 실패해도 서울 공고로 계속 진행한다
+  const alioKey = process.env.DATA_GO_KR_KEY?.trim();
+  let alioCount = 0;
+  if (alioKey) {
+    try {
+      const alioRows = await alio.fetchAll(alioKey);
+      alioCount = alioRows.length;
+      jobs.push(...alioRows.map(alio.normalize));
+    } catch (err) {
+      console.log(`::warning::${err.message} (서울 공고만으로 진행)`);
+    }
+  } else {
+    console.log('DATA_GO_KR_KEY가 없어 알리오는 건너뜀');
+  }
+
+  const output = buildOutput(jobs, config.matching);
   const s = output.summary;
-  console.log(`원본 ${rows.length}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
+  console.log(`원본 서울 ${rows.length}건 + 알리오 ${alioCount}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
 
   if (process.argv.includes('--dry-run') || key === 'sample') {
     console.log('저장하지 않음 (--dry-run 또는 샘플 키)');
-    output.jobs.forEach((j) => console.log(`- ${j.org} | ${j.title} | ${j.region} | ${j.salaryText} | ${j.reason}`));
+    output.jobs.forEach((j) => console.log(`- [${j.source}] ${j.org} | ${j.title} | ${j.region} | ${j.salaryText} | ${j.reason}`));
     return;
   }
   writeOutput(output);
