@@ -3,6 +3,7 @@ const assert = require('node:assert');
 const { normalize, parseDate, parseSalary, parseSchedule } = require('./sources/seoul');
 const { buildOutput, buildFinalOutput, pickRecommendations, hasAgeCap } = require('./collect');
 const { parseTransit, parseDriving } = require('./commute');
+const { buildMessage } = require('./notify');
 const alio = require('./sources/alio');
 
 const MATCHING = {
@@ -184,6 +185,22 @@ test('ODsay·카카오 응답에서 소요시간을 꺼낸다', () => {
   assert.throws(() => parseTransit({ error: [{ code: '500', message: 'ApiKeyAuthFailed' }] }, from, from), /ApiKeyAuthFailed/);
   assert.equal(parseDriving({ routes: [{ result_code: 0, summary: { duration: 1500 } }] }), 25);
   assert.throws(() => parseDriving({ routes: [{ result_code: 104, result_msg: '출발지와 도착지가 너무 가까움' }] }), /104/);
+});
+
+test('텔레그램은 80점 이상만 보내고, 테스트는 점수와 관계없이 보낸다', () => {
+  const output = {
+    generatedAt: '2026-11-10T21:30:00Z',
+    jobs: [
+      { score: 85, title: '사업기획 고문', org: '가상협회', region: '서울 중구', commuteMode: 'transit', commuteMin: 45, deadline: '2026-11-20', reason: '직무가 맞습니다.' },
+      { score: 72, title: '영업 전문가', org: '가상기업', region: '서울 마포구', commuteMin: null, deadline: null, reason: '일부 맞습니다.' },
+    ],
+  };
+  const msg = buildMessage(output);
+  assert.match(msg, /80점 이상 추천 1건/);
+  assert.match(msg, /85점 사업기획 고문\n가상협회 · 서울 중구 · 대중교통 45분 · 11\/20 마감\n직무가 맞습니다\./);
+  assert.ok(!msg.includes('영업 전문가'));
+  assert.equal(buildMessage({ ...output, jobs: [output.jobs[1]] }), null);
+  assert.match(buildMessage({ ...output, jobs: [output.jobs[1]] }, { test: true }), /^\[테스트\][\s\S]*영업 전문가/);
 });
 
 test('넓은 키워드 하나만 있으면 채점 대상이 아니다', () => {

@@ -59,6 +59,8 @@
    * 출퇴근 단계 전체가 실패하면 경고만 남기고 출퇴근 없이 진행
 7. 추천 선정: 70점 이상 점수순 최대 10건 / 5건 미만이면 60점대로 채우고 isReference=true / 동점이면 마감 D-5 이내 우선
 8. 결과 JSON 저장 + (선택) 텔레그램으로 80점 이상 요약 발송
+   * 구현: scripts/notify.js. 키 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. 80점 이상이 없으면 보내지 않음, 실패해도 수집 결과에 영향 없음
+   * 연결 확인: 로컬 `node scripts/notify.js --test` 또는 Actions 수동 실행에서 notify_test 선택 (점수 기준 무시하고 [테스트]로 발송)
 
 ## 공통 공고 스키마
 

@@ -286,6 +286,7 @@ async function main() {
     return;
   }
   writeOutput(output);
+  await require('./notify').notify(output);
 }
 
 if (require.main === module) {

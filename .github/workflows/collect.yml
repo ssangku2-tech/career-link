@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '30 21 * * *' # 매일 06:30 KST
   workflow_dispatch:
+    inputs:
+      notify_test:
+        description: '수집 후 텔레그램 테스트 메시지 보내기 (점수 기준 무시)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write # 수집 결과 JSON을 저장소에 커밋
@@ -33,7 +38,15 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
           ODSAY_API_KEY: ${{ secrets.ODSAY_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node scripts/collect.js
+      - name: Telegram test
+        if: ${{ inputs.notify_test }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/notify.js --test
       - name: Commit & push
         run: |
           git config user.name "github-actions[bot]"
