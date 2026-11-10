@@ -130,6 +130,22 @@
   .empty strong { display: block; font-size: 16px; color: var(--ink); margin-bottom: 4px; }
   .empty .btn { margin: 16px auto 0; padding: 0 24px; display: inline-flex; }
 
+  svg.i.fill { fill: currentColor; }
+  .topbar { justify-content: space-between; margin-right: 0; }
+  .save-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 14px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--navy); color: var(--navy); font-size: 14px; font-weight: 700; background: var(--card); }
+  .save-btn[aria-pressed="true"] { background: var(--navy); color: #fff; box-shadow: none; }
+  .chip.status { background: var(--navy); color: #fff; font-weight: 500; }
+  .memo-preview { margin-top: 8px; font-size: 13px; color: var(--muted); white-space: pre-line; }
+  .filters { display: flex; gap: 6px; margin-top: 14px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .filter { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font-size: 14px; white-space: nowrap; }
+  .filter[aria-pressed="true"] { background: var(--navy); color: #fff; box-shadow: none; font-weight: 700; }
+  .segments { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .segment { min-height: 44px; border-radius: 8px; background: var(--chip); color: #33415A; font-size: 14px; }
+  .segment[aria-pressed="true"] { background: var(--navy); color: #fff; font-weight: 700; }
+  .memo-label { display: block; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .memo { display: block; width: 100%; margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: var(--ink); background: var(--card); resize: vertical; min-height: 72px; }
+  .memo:focus { outline: 2px solid var(--navy); outline-offset: 1px; }
+
   .toast { position: fixed; left: 50%; bottom: calc(92px + var(--safe-b)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 13px; z-index: 20; }
   .toast[hidden] { display: none; }
 </style>
@@ -158,7 +174,67 @@ const ICONS = {
   home: '<path d="m4 11 8-7 8 7"/><path d="M6 9.5V20h12V9.5"/>',
   retry: '<path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/>',
 };
-const icon = (name, small) => `<svg class="i${small ? ' s' : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const icon = (name, small, filled) => `<svg class="i${small ? ' s' : ''}${filled ? ' fill' : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+
+// 저장한 공고는 이 기기의 localStorage에 공고 내용째 보관한다 (다음 날 추천에서 빠져도 남도록)
+const STORE_KEY = 'career-link:saved:v1';
+const STATUSES = [
+  { id: 'saved', label: '관심' },
+  { id: 'applied', label: '지원함' },
+  { id: 'interview', label: '면접' },
+  { id: 'passed', label: '합격' },
+  { id: 'closed', label: '종료' },
+];
+const statusLabel = (id) => STATUSES.find((s) => s.id === id)?.label || '관심';
+const DONE_STATUSES = ['passed', 'closed'];
+
+const store = {
+  read() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      return data && typeof data === 'object' ? data : {};
+    } catch {
+      return {};
+    }
+  },
+  write(data) {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      return true;
+    } catch {
+      showToast('이 기기에 저장하지 못했습니다. 브라우저 저장 공간 설정을 확인해 주세요.');
+      return false;
+    }
+  },
+  get(id) { return this.read()[id] || null; },
+  all() { return Object.values(this.read()); },
+  save(job) {
+    const data = this.read();
+    const now = new Date().toISOString();
+    data[job.id] = { job, status: 'saved', memo: '', savedAt: now, updatedAt: now };
+    return this.write(data);
+  },
+  update(id, patch) {
+    const data = this.read();
+    if (!data[id]) return false;
+    data[id] = { ...data[id], ...patch, updatedAt: new Date().toISOString() };
+    return this.write(data);
+  },
+  remove(id) {
+    const data = this.read();
+    delete data[id];
+    return this.write(data);
+  },
+  // 오늘 목록에 같은 공고가 있으면 최신 내용으로 바꾸고 상태·메모는 유지한다
+  refresh(jobs) {
+    const data = this.read();
+    let changed = false;
+    for (const job of jobs) {
+      if (data[job.id]) { data[job.id].job = job; changed = true; }
+    }
+    if (changed) this.write(data);
+  },
+};
 
 const TABS = [
   { id: 'today', label: '오늘 추천' },
@@ -173,7 +249,7 @@ const URGENT_DAYS = 5;
 const app = document.getElementById('app');
 const tabsEl = document.getElementById('tabs');
 const toastEl = document.getElementById('toast');
-const state = { data: null, config: null, error: false, todayScroll: 0, currentTab: null };
+const state = { data: null, config: null, error: false, scroll: {}, currentTab: null, returnTab: 'today', savedFilter: 'all' };
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const safeUrl = (u) => { try { return ['http:', 'https:'].includes(new URL(u).protocol) ? u : null; } catch { return null; } };
@@ -219,7 +295,7 @@ function scoreBadge(job) {
   return `<div class="score${job.isReference ? ' ref' : ''}" aria-label="적합도 ${esc(job.score)}점">${esc(job.score)}점</div>`;
 }
 
-function jobCard(job) {
+function jobCard(job, entry = store.get(job.id)) {
   const urgent = isUrgent(job);
   const cond = [job.workDays, job.workHours, job.remote !== 'none' ? REMOTE[job.remote] : ''].filter(Boolean).join(' · ');
   return `
@@ -232,6 +308,7 @@ function jobCard(job) {
         ${scoreBadge(job)}
       </div>
       <div class="chips">
+        ${entry ? `<span class="chip status">${icon('saved', true, true)}${esc(statusLabel(entry.status))}</span>` : ''}
         <span class="chip">${esc(job.employType)}</span>
         ${job.contractTerm ? `<span class="chip">${esc(job.contractTerm)}</span>` : ''}
         <span class="chip">${esc(job.region)}</span>
@@ -240,8 +317,48 @@ function jobCard(job) {
       <p class="pay">${esc(job.salaryText || '협의')}</p>
       <p class="cond">${esc(cond)}</p>
       <p class="reason">${esc(job.reason)}</p>
+      ${entry?.memo ? `<p class="memo-preview">메모: ${esc(entry.memo)}</p>` : ''}
       <div class="commute">${commuteHtml(job)}</div>
     </a>`;
+}
+
+function viewSaved() {
+  const entries = store.all();
+  const counts = Object.fromEntries(STATUSES.map((s) => [s.id, entries.filter((e) => e.status === s.id).length]));
+  const filters = [{ id: 'all', label: '전체', count: entries.length }, ...STATUSES.map((s) => ({ ...s, count: counts[s.id] }))];
+  const filter = state.savedFilter;
+  const shown = entries
+    .filter((e) => filter === 'all' || e.status === filter)
+    .sort((a, b) =>
+      DONE_STATUSES.includes(a.status) - DONE_STATUSES.includes(b.status)
+      || (a.job.deadline || '9999').localeCompare(b.job.deadline || '9999')
+      || b.savedAt.localeCompare(a.savedAt));
+  return `
+    <header>
+      <h1 class="page-title" tabindex="-1">저장·지원 ${entries.length}건</h1>
+      <p class="section-note">저장한 공고와 지원 현황은 이 기기(브라우저)에만 보관됩니다.</p>
+    </header>
+    ${entries.length ? `
+    <div class="filters" role="group" aria-label="상태별 보기">
+      ${filters.map((f) => `<button class="filter" data-action="filter" data-filter="${f.id}" aria-pressed="${f.id === filter}">${esc(f.label)} ${f.count}</button>`).join('')}
+    </div>` : ''}
+    ${!entries.length ? `<div class="empty">${icon('saved')}<strong>저장한 공고가 없습니다</strong>공고 상세 화면 위쪽의 저장하기 버튼을 누르면 여기에 모입니다.</div>` : ''}
+    ${entries.length && !shown.length ? `<div class="empty">${icon('saved')}<strong>이 상태의 공고가 없습니다</strong></div>` : ''}
+    ${shown.length ? `<div class="cards">${shown.map((e) => jobCard(e.job, e)).join('')}</div>` : ''}`;
+}
+
+function statusPanel(entry) {
+  const fmt = (iso) => seoulDate(new Date(iso)).slice(5).replace('-', '/');
+  return `
+    <section class="panel">
+      <h2>지원 현황</h2>
+      <div class="segments" role="group" aria-label="지원 상태">
+        ${STATUSES.map((s) => `<button class="segment" data-action="status" data-status="${s.id}" aria-pressed="${entry.status === s.id}">${esc(s.label)}</button>`).join('')}
+      </div>
+      <label class="memo-label" for="memo">메모</label>
+      <textarea id="memo" class="memo" rows="3" maxlength="500" placeholder="지원일, 담당자 안내, 면접 일정 등">${esc(entry.memo)}</textarea>
+      <p class="section-note">저장 ${fmt(entry.savedAt)} · 마지막 변경 ${fmt(entry.updatedAt)}</p>
+    </section>`;
 }
 
 function viewToday() {
@@ -267,11 +384,11 @@ function viewToday() {
         <div class="tile"><b>${esc(value)}</b><span class="${warn && value > 0 ? 'warn' : ''}">${warn && value > 0 ? icon('clock', true) : ''}${esc(label)}</span></div>`).join('')}
     </section>
     ${data.jobs.length === 0 ? `<div class="empty">${icon('today')}<strong>오늘은 조건에 맞는 공고가 없습니다</strong>내일 아침에 다시 골라 드릴게요.</div>` : ''}
-    ${main.length ? `<div class="cards">${main.map(jobCard).join('')}</div>` : ''}
+    ${main.length ? `<div class="cards">${main.map((j) => jobCard(j)).join('')}</div>` : ''}
     ${refs.length ? `
       <h2 class="section-title">참고 공고</h2>
       <p class="section-note">추천 기준(70점)에는 못 미치지만 살펴볼 만한 공고입니다.</p>
-      <div class="cards">${refs.map(jobCard).join('')}</div>` : ''}`;
+      <div class="cards">${refs.map((j) => jobCard(j)).join('')}</div>` : ''}`;
 }
 
 function insuranceRow(job) {
@@ -282,7 +399,9 @@ function insuranceRow(job) {
 }
 
 function viewJob(id) {
-  const job = state.data.jobs.find((j) => j.id === id);
+  const entry = store.get(id);
+  const todayJob = state.data.jobs.find((j) => j.id === id);
+  const job = todayJob || entry?.job;
   if (!job) {
     return `${backBar()}<div class="empty">${icon('warn')}<strong>공고를 찾을 수 없습니다</strong>오늘 목록에서 빠진 공고일 수 있습니다.</div>`;
   }
@@ -301,7 +420,8 @@ function viewJob(id) {
   const dl = (list) => list.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const url = safeUrl(job.url);
   return `
-    ${backBar()}
+    ${backBar(entry)}
+    ${!todayJob ? '<p class="notice">오늘 추천에는 없는, 저장해 둔 공고입니다. 내용은 마지막으로 추천됐을 때 기준입니다.</p>' : ''}
     <header>
       <p class="org">${esc(job.org)} · ${esc(job.orgType)}</p>
       <h1 class="detail-title" tabindex="-1">${esc(job.title)}</h1>
@@ -335,6 +455,8 @@ function viewJob(id) {
       </ul>
     </section>` : ''}
 
+    ${entry ? statusPanel(entry) : ''}
+
     <section class="panel">
       <h2>근무 조건</h2>
       <dl class="table">${dl(rows)}<dt>4대보험</dt>${insuranceRow(job)}${dl(after)}</dl>
@@ -346,8 +468,13 @@ function viewJob(id) {
     </div></div>`;
 }
 
-function backBar() {
-  return `<div class="topbar"><a class="icon-btn" href="#/today" aria-label="오늘 추천으로 돌아가기">${icon('back')}</a></div>`;
+function backBar(entry) {
+  const back = TABS.find((t) => t.id === state.returnTab) || TABS[0];
+  const save = entry === undefined ? '' : `
+    <button class="save-btn" data-action="toggle-save" aria-pressed="${Boolean(entry)}">
+      ${icon('saved', true, Boolean(entry))}${entry ? '저장됨' : '저장하기'}
+    </button>`;
+  return `<div class="topbar"><a class="icon-btn" href="#/${back.id}" aria-label="${esc(back.label)}(으)로 돌아가기">${icon('back')}</a>${save}</div>`;
 }
 
 function viewProfile() {
@@ -386,8 +513,7 @@ function viewProfile() {
 
 function viewPlaceholder(tab) {
   const copy = {
-    saved: ['저장·지원', '공고를 저장하고 지원 현황을 관리하는 기능을 준비하고 있습니다.', 'saved'],
-    support: ['지원사업', '중장년 지원사업 일정을 모아 보여 드리는 기능을 준비하고 있습니다.', 'support'],
+    support:['지원사업', '중장년 지원사업 일정을 모아 보여 드리는 기능을 준비하고 있습니다.', 'support'],
   }[tab];
   return `
     <h1 class="page-title" tabindex="-1">${copy[0]}</h1>
@@ -404,26 +530,77 @@ function renderTabs(active, hidden) {
   tabsEl.innerHTML = `<ul>${TABS.map((t) => `<li><a href="#/${t.id}"${t.id === active ? ' aria-current="page"' : ''}>${icon(t.id)}<span>${t.label}</span></a></li>`).join('')}</ul>`;
 }
 
-function route() {
+function parseHash() {
   const [, tab = 'today', id] = location.hash.split('/');
+  return { tab, id: decodeURIComponent(id || '') };
+}
+
+// 현재 화면을 다시 그린다 (스크롤·포커스는 건드리지 않는다)
+function render() {
+  const { tab, id } = parseHash();
+  if (state.error) { app.innerHTML = viewError(); return; }
+  if (!state.data) return;
+  if (tab === 'job') app.innerHTML = viewJob(id);
+  else if (tab === 'profile') app.innerHTML = viewProfile();
+  else if (tab === 'saved') app.innerHTML = viewSaved();
+  else if (tab === 'support') app.innerHTML = viewPlaceholder(tab);
+  else app.innerHTML = viewToday();
+}
+
+function route() {
+  const { tab } = parseHash();
   const isDetail = tab === 'job';
-  if (state.currentTab === 'today' && isDetail) state.todayScroll = window.scrollY;
   const prev = state.currentTab;
+  // 목록에서 상세로 갈 때 위치를 기억해 두었다가 돌아오면 복원한다
+  if (isDetail && prev && prev !== 'job') {
+    state.scroll[prev] = window.scrollY;
+    state.returnTab = prev;
+  }
   state.currentTab = tab;
 
   renderTabs(isDetail ? null : tab, isDetail);
   app.classList.toggle('detail', isDetail);
+  render();
 
-  if (state.error) { app.innerHTML = viewError(); return; }
-  if (!state.data) return;
-
-  if (isDetail) app.innerHTML = viewJob(decodeURIComponent(id || ''));
-  else if (tab === 'profile') app.innerHTML = viewProfile();
-  else if (tab === 'saved' || tab === 'support') app.innerHTML = viewPlaceholder(tab);
-  else app.innerHTML = viewToday();
-
-  window.scrollTo(0, tab === 'today' && prev === 'job' ? state.todayScroll : 0);
+  window.scrollTo(0, !isDetail && prev === 'job' ? state.scroll[tab] || 0 : 0);
   if (prev !== null) app.querySelector('h1')?.focus({ preventScroll: true });
+}
+
+function currentJob() {
+  const { id } = parseHash();
+  return state.data.jobs.find((j) => j.id === id) || store.get(id)?.job || null;
+}
+
+function handleAction(el) {
+  const { action } = el.dataset;
+  if (action === 'filter') {
+    state.savedFilter = el.dataset.filter;
+    render();
+    return;
+  }
+  const job = currentJob();
+  if (!job) return;
+  if (action === 'toggle-save') {
+    const entry = store.get(job.id);
+    if (entry) {
+      const hasProgress = entry.status !== 'saved' || entry.memo;
+      if (hasProgress && !confirm('저장을 취소하면 지원 상태와 메모도 함께 지워집니다. 취소할까요?')) return;
+      if (store.remove(job.id)) showToast('저장을 취소했습니다');
+      // 오늘 추천에 없는 공고는 저장을 취소하면 볼 수 없으므로 저장 목록으로 돌아간다
+      if (!state.data.jobs.some((j) => j.id === job.id)) {
+        location.hash = '#/saved';
+        return;
+      }
+    } else if (store.save(job)) {
+      showToast('저장·지원 탭에 저장했습니다');
+    }
+    render();
+    document.querySelector('[data-action="toggle-save"]')?.focus();
+  } else if (action === 'status') {
+    if (store.update(job.id, { status: el.dataset.status })) showToast(`상태를 "${statusLabel(el.dataset.status)}"(으)로 바꿨습니다`);
+    render();
+    document.querySelector(`[data-status="${el.dataset.status}"]`)?.focus();
+  }
 }
 
 async function load() {
@@ -435,6 +612,7 @@ async function load() {
       return res.json();
     };
     [state.data, state.config] = await Promise.all([getJson('data/latest.json'), getJson('config.json')]);
+    if (!state.data.isSample) store.refresh(state.data.jobs);
   } catch (err) {
     console.error(err);
     state.error = true;
@@ -454,6 +632,14 @@ document.addEventListener('click', (e) => {
   const toastBtn = e.target.closest('[data-toast]');
   if (toastBtn) showToast(toastBtn.dataset.toast);
   if (e.target.closest('#retry')) load();
+  const actionEl = e.target.closest('[data-action]');
+  if (actionEl) handleAction(actionEl);
+});
+// 메모는 입력을 마치고 포커스가 빠질 때 저장한다
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'memo') return;
+  const job = currentJob();
+  if (job && store.update(job.id, { memo: e.target.value.trim() })) showToast('메모를 저장했습니다');
 });
 window.addEventListener('hashchange', route);
 
