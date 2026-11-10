@@ -1,0 +1,73 @@
+{
+  "isSample": false,
+  "isScored": true,
+  "generatedAt": "2026-11-10T23:49:14.341Z",
+  "summary": {
+    "collected": 441,
+    "filtered": 1745,
+    "matched": 5,
+    "commuteComputed": 5,
+    "commuteExcluded": 2,
+    "scored": 3
+  },
+  "jobs": [
+    {
+      "id": "seoul-86740def7339",
+      "source": "seoul",
+      "org": "주식회사 비앤씨팩토리",
+      "orgType": "기업",
+      "title": "B2B영업전문가 모집합니다",
+      "region": "서울 마포구",
+      "address": "서울특별시 마포구 양화로6길 49, 너구리베이글 (서교동)",
+      "employType": "계약직",
+      "workDays": "주 3일",
+      "workHours": "09:00~17:00",
+      "remote": "none",
+      "salaryText": "월급 200만원 이상",
+      "salaryMonthly": 2000000,
+      "insurance": "기타",
+      "contractTerm": "기간제 (공고 확인)",
+      "ageCondition": "공고 확인",
+      "documents": "이력서,자기소개서,졸업증명서,경력증명서",
+      "deadline": "2026-12-12",
+      "url": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do?srcKeyword=B2B%EC%98%81%EC%97%85%EC%A0%84%EB%AC%B8%EA%B0%80%20%EB%AA%A8%EC%A7%91%ED%95%A9%EB%8B%88%EB%8B%A4&keywordWantedTitle=Y&srckeywordWantedTitle=Y",
+      "score": 80,
+      "reason": "B2B 영업과 신규 거래처 개척 업무가 경력과 직접 맞고 주 3일 근무도 맞습니다.",
+      "matchItems": [
+        {
+          "name": "B2B 영업",
+          "level": "high"
+        },
+        {
+          "name": "사업기획",
+          "level": "mid"
+        },
+        {
+          "name": "근무 형태",
+          "level": "high"
+        },
+        {
+          "name": "중장년 친화",
+          "level": "high"
+        }
+      ],
+      "careerTranslation": [
+        {
+          "from": "B2B 영업 및 기업 고객 계약",
+          "to": "B2B 판매 및 잠재거래처 발굴"
+        },
+        {
+          "from": "사업기획 및 영업 전략",
+          "to": "영업구조 제안 및 영업자산 구축"
+        },
+        {
+          "from": "파트너 운영 및 채널 관리",
+          "to": "유통사·채널 거래처 관리"
+        }
+      ],
+      "commuteMin": 44,
+      "commuteMode": "transit",
+      "isReference": false
+    }
+  ]
+}
