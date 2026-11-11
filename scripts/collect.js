@@ -3,7 +3,6 @@
 // 사용법: node scripts/collect.js [--dry-run]
 const fs = require('fs');
 const path = require('path');
-const seoul = require('./sources/seoul');
 const alio = require('./sources/alio');
 
 const ROOT = path.join(__dirname, '..');
@@ -217,28 +216,14 @@ function writeOutput(output) {
 
 async function main() {
   try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* 배포 환경에는 .env가 없다 */ }
-  const key = process.env.SEOUL_API_KEY?.trim();
-  if (!key) throw new Error('SEOUL_API_KEY가 없습니다');
-
+  // 서울 열린데이터광장 채용정보는 2026-11-11 서울시 요청(고용노동부 승인 범위 외 이용)으로 수집을 중지했다.
+  // scripts/sources/seoul.js는 정규화 함수 테스트용으로만 남아 있고 호출하지 않는다.
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
-  const rows = await seoul.fetchAll(key);
-  if (rows.length === 0) throw new Error('수집 결과가 0건입니다');
-  const jobs = rows.map(seoul.normalize);
-
-  // 알리오는 보조 소스라 실패해도 서울 공고로 계속 진행한다
   const alioKey = process.env.DATA_GO_KR_KEY?.trim();
-  let alioCount = 0;
-  if (alioKey) {
-    try {
-      const alioRows = await alio.fetchAll(alioKey);
-      alioCount = alioRows.length;
-      jobs.push(...alioRows.map(alio.normalize));
-    } catch (err) {
-      console.log(`::warning::${err.message} (서울 공고만으로 진행)`);
-    }
-  } else {
-    console.log('DATA_GO_KR_KEY가 없어 알리오는 건너뜀');
-  }
+  if (!alioKey) throw new Error('DATA_GO_KR_KEY가 없습니다');
+  const alioRows = await alio.fetchAll(alioKey);
+  const alioCount = alioRows.length;
+  const jobs = alioRows.map(alio.normalize);
 
   // 출퇴근: 카카오·ODsay 키가 모두 있을 때만
   const kakaoKey = process.env.KAKAO_REST_KEY?.trim();
@@ -273,9 +258,9 @@ async function main() {
     const u = result.usage;
     console.log(`AI 채점 ${model}: ${s.scored}건 · 입력 ${u.input} · 출력 ${u.output} 토큰 · 약 $${u.costUsd.toFixed(4)}`);
   }
-  console.log(`원본 서울 ${rows.length}건 + 알리오 ${alioCount}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
+  console.log(`원본 알리오 ${alioCount}건 · 신규 ${s.collected}건 · 조건 통과 ${s.filtered}건 · 키워드 일치 ${s.matched}건 · 추천 ${output.jobs.length}건`);
 
-  if (process.argv.includes('--dry-run') || key === 'sample') {
+  if (process.argv.includes('--dry-run')) {
     console.log('저장하지 않음 (--dry-run 또는 샘플 키)');
     (result.scored || output.jobs).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).forEach((j) => {
       const commute = j.commuteMin == null ? '출퇴근 미계산' : `${j.commuteMode === 'car' ? '자차' : '대중교통'} ${j.commuteMin}분`;

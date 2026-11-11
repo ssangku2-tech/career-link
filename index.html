@@ -401,6 +401,7 @@ function viewToday() {
       <p class="date">${esc(headerDate(data.generatedAt))}</p>
       <h1 class="page-title" tabindex="-1">오늘의 추천 ${data.jobs.length}건</h1>
       ${data.isSample ? '<p class="notice">지금은 화면 확인용 샘플입니다. 기관과 공고는 모두 가상입니다.</p>' : ''}
+      ${data.notice ? `<p class="notice">${esc(data.notice)}</p>` : ''}
       ${data.isScored === false ? '<p class="notice">아직 AI 채점 전입니다. 제목과 직종에 내 경력 키워드가 있는 공고를 골랐습니다.</p>' : ''}
     </header>
     <section class="tiles" aria-label="오늘 요약">
